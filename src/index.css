@@ -1,0 +1,1306 @@
+/* ═══════════════════════════════════════════════════════════
+   Fretboard Atlas — 设计系统
+   美学方向：复古制琴工坊 (Vintage Luthier Workshop)
+   暖纸质地 · 玫瑰木 · 黄铜与镍银 · 炭火红
+   ═══════════════════════════════════════════════════════════ */
+
+@layer tokens, base, layout, components, utilities;
+
+@layer tokens {
+  :root {
+    /* ── 纸张与墨色 ─────────────────────────────── */
+    --paper: oklch(96% 0.014 82);
+    --paper-2: oklch(92.5% 0.021 78);
+    --paper-3: oklch(88% 0.026 75);
+    --paper-sunk: oklch(85% 0.028 72);
+
+    --ink: oklch(25% 0.028 55);
+    --ink-2: oklch(43% 0.026 58);
+    --ink-3: oklch(58% 0.022 62);
+    --ink-4: oklch(72% 0.018 68);
+
+    --line: oklch(84% 0.024 72);
+    --line-soft: oklch(89% 0.02 76);
+
+    /* ── 木材与金属 ─────────────────────────────── */
+    --rose-hi: oklch(41% 0.055 50);
+    --rose: oklch(31% 0.046 44);
+    --rose-lo: oklch(21% 0.034 38);
+    --rose-edge: oklch(16% 0.028 36);
+    --maple: oklch(89% 0.048 84);
+    --bone: oklch(93% 0.028 88);
+
+    --nickel-hi: oklch(93% 0.006 250);
+    --nickel: oklch(78% 0.008 250);
+    --nickel-lo: oklch(55% 0.012 252);
+    --brass: oklch(77% 0.105 84);
+    --brass-lo: oklch(58% 0.09 80);
+
+    /* ── 语义色 ─────────────────────────────────── */
+    --ember: oklch(55% 0.165 34);
+    --ember-soft: oklch(67% 0.135 42);
+    --ember-wash: oklch(93% 0.04 46);
+    --sage: oklch(55% 0.09 152);
+    --sage-wash: oklch(93% 0.038 152);
+    --clay: oklch(53% 0.175 27);
+
+    /* ── 字体 ───────────────────────────────────── */
+    --font-display: 'Fraunces', 'Songti SC', 'SimSun', serif;
+    --font-ui: 'Outfit', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+    --font-mono: 'DM Mono', ui-monospace, 'Cascadia Code', monospace;
+
+    /* Fraunces 可变轴：稍微「歪」一点，避免过于工整的数字排版 */
+    --wonk-on: 'SOFT' 32, 'WONK' 1;
+    --wonk-off: 'SOFT' 18, 'WONK' 0;
+
+    /* ── 间距节奏（非等比，制造呼吸感）───────────── */
+    --s-1: 0.25rem;
+    --s-2: 0.5rem;
+    --s-3: 0.75rem;
+    --s-4: 1rem;
+    --s-5: 1.5rem;
+    --s-6: 2.25rem;
+    --s-7: 3.5rem;
+
+    --radius-sm: 3px;
+    --radius: 6px;
+    --radius-lg: 12px;
+
+    /* ── 缓动：指数型，起步快收尾稳 ───────────────── */
+    --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-in-out-quart: cubic-bezier(0.76, 0, 0.24, 1);
+
+    --shadow-sunk: inset 0 1px 3px oklch(30% 0.03 60 / 0.16);
+    --shadow-raise: 0 1px 0 oklch(100% 0 0 / 0.6), 0 2px 6px oklch(30% 0.03 60 / 0.1);
+    --shadow-float: 0 12px 32px -12px oklch(30% 0.04 55 / 0.3);
+  }
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    font-family: var(--font-ui);
+    font-weight: 400;
+    color: var(--ink);
+    background-color: var(--paper);
+    /* 极细的纸张噪点，让大面积色块不显得死板 */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  button {
+    font: inherit;
+    color: inherit;
+    border: none;
+    background: none;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ember);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  ::selection {
+    background: var(--ember-wash);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   布局骨架
+   ═══════════════════════════════════════════════════════════ */
+
+@layer layout {
+  .app {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    height: 100dvh;
+    max-height: 100dvh;
+  }
+
+  /* ── 顶栏 ─────────────────────────────────────── */
+  .topbar {
+    display: flex;
+    align-items: center;
+    gap: var(--s-4);
+    padding: var(--s-3) clamp(var(--s-4), 3vw, var(--s-6));
+    border-bottom: 1px solid var(--line);
+    background: linear-gradient(to bottom, var(--paper), var(--paper-2));
+  }
+
+  .brand {
+    display: flex;
+    align-items: baseline;
+    gap: var(--s-2);
+    margin-right: auto;
+    min-width: 0;
+  }
+
+  .brand__mark {
+    font-family: var(--font-display);
+    font-variation-settings: var(--wonk-on);
+    font-weight: 700;
+    font-size: clamp(1rem, 2vw, 1.3rem);
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+  }
+
+  .brand__sub {
+    font-size: 0.72rem;
+    color: var(--ink-3);
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 720px) {
+    .brand__sub {
+      display: none;
+    }
+  }
+
+  /* ── 出题舞台（上半屏）─────────────────────────── */
+  .stage {
+    position: relative;
+    display: grid;
+    place-items: center;
+    padding: var(--s-4) var(--s-4) var(--s-3);
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* 舞台底纹：一圈极淡的暖色光晕，把注意力收到中央 */
+  .stage::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+      ellipse 60% 70% at 50% 42%,
+      oklch(98% 0.02 80 / 0.9),
+      transparent 70%
+    );
+    pointer-events: none;
+  }
+
+  /* ── 指板区（下半屏）───────────────────────────── */
+  .fretboard-zone {
+    position: relative;
+    padding: var(--s-3) clamp(var(--s-3), 2.5vw, var(--s-5)) clamp(var(--s-4), 2.5vh, var(--s-5));
+    background: linear-gradient(to bottom, var(--paper-2), var(--paper-3));
+    border-top: 1px solid var(--line);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   组件
+   ═══════════════════════════════════════════════════════════ */
+
+@layer components {
+  /* ────────────────── 分段控制器（模式切换）────────────────── */
+  .segmented {
+    display: inline-flex;
+    padding: 3px;
+    gap: 2px;
+    background: var(--paper-sunk);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sunk);
+  }
+
+  .segmented__item {
+    position: relative;
+    padding: 0.4rem 0.85rem;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--ink-2);
+    border-radius: var(--radius-sm);
+    transition: color 0.2s var(--ease-out-quart);
+    white-space: nowrap;
+  }
+
+  .segmented__item:hover:not([aria-pressed='true']) {
+    color: var(--ink);
+  }
+
+  .segmented__item[aria-pressed='true'] {
+    color: var(--paper);
+    background: var(--ink);
+    box-shadow: var(--shadow-raise);
+  }
+
+  /* ────────────────── 按钮 ────────────────── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    padding: 0.55rem 1.1rem;
+    font-size: 0.88rem;
+    font-weight: 500;
+    border-radius: var(--radius);
+    border: 1px solid var(--line);
+    background: linear-gradient(to bottom, var(--paper), var(--paper-2));
+    color: var(--ink);
+    box-shadow: var(--shadow-raise);
+    transition:
+      transform 0.16s var(--ease-out-quart),
+      box-shadow 0.16s var(--ease-out-quart),
+      background-color 0.16s var(--ease-out-quart),
+      border-color 0.16s var(--ease-out-quart);
+  }
+
+  .btn:hover {
+    border-color: var(--ink-4);
+    transform: translateY(-1px);
+  }
+
+  .btn:active {
+    transform: translateY(0);
+    box-shadow: var(--shadow-sunk);
+  }
+
+  .btn:disabled {
+    opacity: 0.42;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+
+  .btn--primary {
+    background: linear-gradient(to bottom, var(--ember-soft), var(--ember));
+    border-color: oklch(48% 0.16 32);
+    color: oklch(98% 0.012 60);
+    text-shadow: 0 1px 1px oklch(35% 0.12 30 / 0.4);
+  }
+
+  .btn--primary:hover {
+    border-color: oklch(42% 0.16 30);
+  }
+
+  .btn--lg {
+    padding: 0.7rem 1.6rem;
+    font-size: 0.98rem;
+  }
+
+  .btn--icon {
+    padding: 0.5rem;
+    width: 2.2rem;
+    height: 2.2rem;
+  }
+
+  .btn--ghost {
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+  }
+
+  .btn--ghost:hover {
+    background: var(--paper-2);
+    border-color: var(--line);
+  }
+
+  /* ────────────────── 出题卡：核心视觉焦点 ────────────────── */
+  .prompt {
+    position: relative;
+    display: grid;
+    justify-items: center;
+    gap: clamp(var(--s-2), 1.2vh, var(--s-4));
+    text-align: center;
+    z-index: 1;
+  }
+
+  .prompt__eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.74rem;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+
+  .prompt__eyebrow::before,
+  .prompt__eyebrow::after {
+    content: '';
+    width: clamp(20px, 5vw, 48px);
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--line), transparent);
+  }
+
+  /* 「6弦」这样的弦名 */
+  .prompt__string {
+    font-family: var(--font-display);
+    font-variation-settings: var(--wonk-off);
+    font-weight: 500;
+    font-size: clamp(0.95rem, 2.2vh, 1.25rem);
+    color: var(--ink-2);
+    letter-spacing: 0.02em;
+  }
+
+  /* 巨大的音名 */
+  .prompt__note {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 0.06em;
+    font-family: var(--font-display);
+    font-variation-settings: var(--wonk-on);
+    font-weight: 900;
+    font-size: clamp(4rem, 17vh, 9.5rem);
+    line-height: 0.86;
+    letter-spacing: -0.045em;
+    color: var(--ink);
+  }
+
+  .prompt__accidental {
+    font-size: 0.46em;
+    font-weight: 600;
+    color: var(--ember);
+    align-self: flex-start;
+    margin-top: 0.12em;
+  }
+
+  .prompt__solfege {
+    font-family: var(--font-display);
+    font-variation-settings: var(--wonk-off);
+    font-style: italic;
+    font-weight: 400;
+    font-size: clamp(1.1rem, 3.4vh, 1.9rem);
+    color: var(--ember);
+    letter-spacing: 0.01em;
+  }
+
+  .prompt__shorthand {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--ink-3);
+    letter-spacing: 0.08em;
+  }
+
+  /* 题目切换时的入场动画 */
+  .prompt__body {
+    display: grid;
+    justify-items: center;
+    gap: clamp(0.15rem, 0.8vh, 0.5rem);
+    animation: prompt-enter 0.42s var(--ease-out-expo) both;
+  }
+
+  @keyframes prompt-enter {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.97);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* ────────────────── 倒计时环 ────────────────── */
+  .timer {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: clamp(52px, 8vh, 74px);
+    height: clamp(52px, 8vh, 74px);
+  }
+
+  .timer__ring {
+    position: absolute;
+    inset: 0;
+    transform: rotate(-90deg);
+  }
+
+  .timer__track {
+    fill: none;
+    stroke: var(--line);
+    stroke-width: 3;
+  }
+
+  .timer__progress {
+    fill: none;
+    stroke: var(--ember);
+    stroke-width: 3;
+    stroke-linecap: round;
+  }
+
+  /* 环从满圈匀速排空，时长由 JS 按当前间隔设置 */
+  @keyframes ring-drain {
+    from {
+      stroke-dashoffset: 0;
+    }
+    to {
+      stroke-dashoffset: 163.363;
+    }
+  }
+
+  .timer__value {
+    font-family: var(--font-mono);
+    font-size: clamp(0.85rem, 1.8vh, 1.05rem);
+    font-weight: 500;
+    color: var(--ink-2);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ────────────────── 答案揭示条 ────────────────── */
+  .reveal {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.42rem 0.9rem;
+    font-size: 0.9rem;
+    border-radius: 999px;
+    background: var(--sage-wash);
+    border: 1px solid oklch(80% 0.06 152);
+    color: oklch(38% 0.08 152);
+    animation: reveal-pop 0.36s var(--ease-out-expo) both;
+  }
+
+  .reveal--miss {
+    background: var(--ember-wash);
+    border-color: oklch(82% 0.07 40);
+    color: oklch(42% 0.14 32);
+  }
+
+  .reveal__pos {
+    font-family: var(--font-mono);
+    font-weight: 500;
+  }
+
+  @keyframes reveal-pop {
+    from {
+      opacity: 0;
+      transform: scale(0.9);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* ────────────────── 空状态 ────────────────── */
+  .empty {
+    display: grid;
+    justify-items: center;
+    gap: var(--s-4);
+    max-width: 34rem;
+    text-align: center;
+    z-index: 1;
+  }
+
+  .empty__title {
+    font-family: var(--font-display);
+    font-variation-settings: var(--wonk-on);
+    font-weight: 700;
+    font-size: clamp(1.6rem, 5vh, 2.6rem);
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+    margin: 0;
+  }
+
+  .empty__text {
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: var(--ink-2);
+    margin: 0;
+    max-width: 30rem;
+  }
+
+  .empty__hints {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--s-2) var(--s-4);
+    margin-top: var(--s-2);
+    font-size: 0.8rem;
+    color: var(--ink-3);
+  }
+
+  .empty__hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  kbd {
+    font-family: var(--font-mono);
+    font-size: 0.74rem;
+    padding: 0.12rem 0.4rem;
+    border-radius: var(--radius-sm);
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-bottom-width: 2px;
+    color: var(--ink-2);
+  }
+
+  /* ────────────────── 统计条 ────────────────── */
+  .stats {
+    display: flex;
+    align-items: center;
+    gap: clamp(var(--s-3), 2vw, var(--s-5));
+  }
+
+  .stat {
+    display: flex;
+    align-items: baseline;
+    gap: 0.35rem;
+  }
+
+  .stat__value {
+    font-family: var(--font-mono);
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stat__label {
+    font-size: 0.7rem;
+    letter-spacing: 0.06em;
+    color: var(--ink-3);
+  }
+
+  .stat--streak .stat__value {
+    color: var(--ember);
+  }
+
+  @media (max-width: 860px) {
+    .stats {
+      display: none;
+    }
+  }
+
+  /* ────────────────── 设置抽屉 ────────────────── */
+  .drawer-backdrop {
+    position: fixed;
+    inset: 0;
+    background: oklch(25% 0.03 55 / 0.28);
+    backdrop-filter: blur(2px);
+    z-index: 40;
+    animation: fade-in 0.24s var(--ease-out-quart) both;
+  }
+
+  .drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(384px, 100vw);
+    z-index: 41;
+    display: flex;
+    flex-direction: column;
+    background: var(--paper);
+    border-left: 1px solid var(--line);
+    box-shadow: var(--shadow-float);
+    animation: drawer-in 0.34s var(--ease-out-expo) both;
+    overflow: hidden;
+  }
+
+  @keyframes drawer-in {
+    from {
+      transform: translateX(100%);
+    }
+    to {
+      transform: none;
+    }
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .drawer__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--s-4) var(--s-5);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .drawer__title {
+    font-family: var(--font-display);
+    font-variation-settings: var(--wonk-on);
+    font-weight: 700;
+    font-size: 1.15rem;
+    letter-spacing: -0.02em;
+    margin: 0;
+  }
+
+  .drawer__body {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--s-5);
+    display: grid;
+    gap: var(--s-6);
+    align-content: start;
+  }
+
+  .field {
+    display: grid;
+    gap: var(--s-3);
+  }
+
+  .field__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--s-3);
+  }
+
+  .field__label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--ink);
+  }
+
+  .field__value {
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    color: var(--ember);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .field__hint {
+    font-size: 0.76rem;
+    line-height: 1.5;
+    color: var(--ink-3);
+    margin: 0;
+  }
+
+  /* 滑块 */
+  input[type='range'] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 22px;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  input[type='range']::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--paper-sunk);
+    box-shadow: var(--shadow-sunk);
+  }
+
+  input[type='range']::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    margin-top: -6px;
+    border-radius: 50%;
+    background: linear-gradient(to bottom, var(--paper), var(--paper-2));
+    border: 1px solid var(--ink-4);
+    box-shadow: var(--shadow-raise);
+    transition: transform 0.15s var(--ease-out-quart);
+  }
+
+  input[type='range']:hover::-webkit-slider-thumb {
+    transform: scale(1.12);
+    border-color: var(--ember);
+  }
+
+  input[type='range']::-moz-range-track {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--paper-sunk);
+  }
+
+  input[type='range']::-moz-range-thumb {
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background: var(--paper);
+    border: 1px solid var(--ink-4);
+  }
+
+  /* 弦选择器 */
+  .string-picker {
+    display: flex;
+    gap: var(--s-2);
+  }
+
+  .string-chip {
+    flex: 1;
+    display: grid;
+    justify-items: center;
+    gap: 0.15rem;
+    padding: 0.5rem 0.2rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--line);
+    background: var(--paper);
+    transition:
+      background-color 0.16s var(--ease-out-quart),
+      border-color 0.16s var(--ease-out-quart),
+      color 0.16s var(--ease-out-quart);
+  }
+
+  .string-chip:hover {
+    border-color: var(--ink-4);
+  }
+
+  .string-chip[aria-pressed='true'] {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: var(--paper);
+  }
+
+  .string-chip__num {
+    font-family: var(--font-mono);
+    font-size: 0.92rem;
+    font-weight: 500;
+  }
+
+  .string-chip__note {
+    font-size: 0.66rem;
+    opacity: 0.72;
+  }
+
+  /* 开关 */
+  .toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s-4);
+    width: 100%;
+    padding: 0;
+    text-align: left;
+  }
+
+  .toggle__track {
+    flex-shrink: 0;
+    position: relative;
+    width: 40px;
+    height: 22px;
+    border-radius: 999px;
+    background: var(--paper-sunk);
+    box-shadow: var(--shadow-sunk);
+    transition: background-color 0.22s var(--ease-out-quart);
+  }
+
+  .toggle[aria-pressed='true'] .toggle__track {
+    background: var(--ember);
+  }
+
+  .toggle__knob {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--paper);
+    box-shadow: 0 1px 3px oklch(30% 0.03 60 / 0.28);
+    transition: transform 0.24s var(--ease-out-expo);
+  }
+
+  .toggle[aria-pressed='true'] .toggle__knob {
+    transform: translateX(18px);
+  }
+
+  /* 选择框 */
+  select {
+    font: inherit;
+    font-size: 0.85rem;
+    padding: 0.45rem 0.7rem;
+    color: var(--ink);
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    cursor: pointer;
+    width: 100%;
+  }
+
+  select:hover {
+    border-color: var(--ink-4);
+  }
+
+  /* 抽屉里的分节标题 */
+  .section-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    padding-bottom: var(--s-2);
+    border-bottom: 1px solid var(--line-soft);
+    margin-bottom: calc(var(--s-2) * -1);
+  }
+
+  /* ────────────────── 弦别掌握度热力 ────────────────── */
+  .heat {
+    display: grid;
+    gap: var(--s-2);
+  }
+
+  .heat__row {
+    display: grid;
+    grid-template-columns: 2.6rem 1fr 2.4rem;
+    align-items: center;
+    gap: var(--s-3);
+    font-size: 0.76rem;
+  }
+
+  .heat__name {
+    font-family: var(--font-mono);
+    color: var(--ink-2);
+  }
+
+  .heat__bar {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--paper-sunk);
+    overflow: hidden;
+    box-shadow: var(--shadow-sunk);
+  }
+
+  .heat__fill {
+    height: 100%;
+    border-radius: 3px;
+    background: linear-gradient(to right, var(--ember-soft), var(--sage));
+    transition: width 0.5s var(--ease-out-quart);
+  }
+
+  .heat__pct {
+    font-family: var(--font-mono);
+    color: var(--ink-3);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   指板（SVG）
+   ═══════════════════════════════════════════════════════════ */
+
+@layer components {
+  .fretboard {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+
+  .fretboard-scroll {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: var(--ink-4) transparent;
+  }
+
+  .fretboard-scroll::-webkit-scrollbar {
+    height: 6px;
+  }
+
+  .fretboard-scroll::-webkit-scrollbar-thumb {
+    background: var(--ink-4);
+    border-radius: 3px;
+  }
+
+  /* 点击热区 */
+  .fret-cell {
+    fill: transparent;
+    cursor: pointer;
+    transition: fill 0.14s var(--ease-out-quart);
+  }
+
+  .fret-cell:hover {
+    fill: oklch(98% 0.03 82 / 0.14);
+  }
+
+  .fret-cell--locked {
+    cursor: default;
+  }
+
+  .fret-cell--locked:hover {
+    fill: transparent;
+  }
+
+  /* 音点标记 */
+  .dot {
+    pointer-events: none;
+  }
+
+  .dot__body {
+    transition:
+      transform 0.24s var(--ease-out-expo),
+      opacity 0.24s var(--ease-out-quart);
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+
+  .dot--answer .dot__body {
+    animation: dot-land 0.44s var(--ease-out-expo) both;
+  }
+
+  .dot--secondary .dot__body {
+    animation: dot-land 0.44s var(--ease-out-expo) 0.12s both;
+  }
+
+  @keyframes dot-land {
+    0% {
+      opacity: 0;
+      transform: scale(0.3);
+    }
+    60% {
+      transform: scale(1.06);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  .dot__label {
+    font-family: var(--font-ui);
+    font-weight: 600;
+    text-anchor: middle;
+    dominant-baseline: central;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  /* 命中 / 失误的涟漪 */
+  .ripple {
+    fill: none;
+    pointer-events: none;
+    animation: ripple-out 0.62s var(--ease-out-expo) both;
+  }
+
+  @keyframes ripple-out {
+    from {
+      opacity: 0.7;
+      r: 6;
+      stroke-width: 3;
+    }
+    to {
+      opacity: 0;
+      r: 30;
+      stroke-width: 0.5;
+    }
+  }
+
+  /* 弦振动 */
+  .string--ringing {
+    animation: string-vibrate 0.5s var(--ease-out-quart);
+  }
+
+  @keyframes string-vibrate {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    12% {
+      transform: translateY(-1.6px);
+    }
+    28% {
+      transform: translateY(1.3px);
+    }
+    46% {
+      transform: translateY(-0.85px);
+    }
+    64% {
+      transform: translateY(0.5px);
+    }
+    82% {
+      transform: translateY(-0.24px);
+    }
+  }
+
+  /* 品位数字 */
+  .fret-number {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    fill: var(--ink-3);
+    text-anchor: middle;
+    user-select: none;
+  }
+
+  .fret-number--marked {
+    fill: var(--ink-2);
+    font-weight: 500;
+  }
+
+  /* 弦名标签 */
+  .string-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    fill: var(--ink-2);
+    text-anchor: end;
+    dominant-baseline: central;
+    user-select: none;
+  }
+
+  .string-label__num {
+    font-size: 9px;
+    fill: var(--ink-4);
+  }
+
+  /* 目标弦提示光带 */
+  .string-spotlight {
+    animation: spotlight-in 0.4s var(--ease-out-quart) both;
+    pointer-events: none;
+  }
+
+  @keyframes spotlight-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}
+
+@layer utilities {
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .stack {
+    display: grid;
+    gap: var(--s-3);
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: var(--s-3);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   三任务模式新增组件
+   ═══════════════════════════════════════════════════════════ */
+
+@layer components {
+  /* ────────────────── 顶栏双控件组 ────────────────── */
+  .topbar__controls {
+    display: flex;
+    align-items: center;
+    gap: var(--s-3);
+    flex-wrap: wrap;
+  }
+
+  @media (max-width: 720px) {
+    .topbar__controls {
+      gap: var(--s-2);
+    }
+    .topbar__controls .segmented__item {
+      padding: 0.35rem 0.6rem;
+      font-size: 0.78rem;
+    }
+  }
+
+  /* ────────────────── 参考格的呼吸环 ────────────────── */
+  .dot--reference .ref-ring {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: ref-pulse 1.5s var(--ease-in-out-quart) infinite;
+  }
+
+  @keyframes ref-pulse {
+    0%,
+    100% {
+      opacity: 0.55;
+      stroke-width: 2.2;
+    }
+    50% {
+      opacity: 1;
+      stroke-width: 3.4;
+    }
+  }
+
+  /* ────────────────── 题目小提示 ────────────────── */
+  .prompt__hint-sm {
+    font-size: 0.86rem;
+    color: var(--ink-2);
+    letter-spacing: 0.01em;
+  }
+
+  /* ────────────────── 音名键盘（认音名）────────────────── */
+  .keypad {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--s-2);
+    max-width: 30rem;
+  }
+
+  .key {
+    display: grid;
+    justify-items: center;
+    gap: 0.08rem;
+    min-width: 44px;
+    min-height: 48px;
+    padding: 0.3rem 0.62rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--line);
+    background: linear-gradient(to bottom, var(--paper), var(--paper-2));
+    box-shadow: var(--shadow-raise);
+    transition:
+      transform 0.14s var(--ease-out-quart),
+      border-color 0.14s var(--ease-out-quart),
+      background-color 0.14s var(--ease-out-quart),
+      color 0.14s var(--ease-out-quart);
+  }
+
+  .key:hover {
+    transform: translateY(-1px);
+    border-color: var(--ink-4);
+  }
+
+  .key:active {
+    transform: translateY(0);
+    box-shadow: var(--shadow-sunk);
+  }
+
+  .key__letter {
+    font-family: var(--font-display);
+    font-variation-settings: var(--wonk-off);
+    font-weight: 700;
+    font-size: 1.25rem;
+    line-height: 1;
+    color: var(--ink);
+  }
+
+  .key__sharp {
+    font-size: 0.62em;
+    vertical-align: super;
+    color: var(--ember);
+  }
+
+  .key__solfege {
+    font-size: 0.66rem;
+    color: var(--ink-3);
+  }
+
+  .key--picked {
+    border-color: var(--ink);
+    background: var(--ink);
+  }
+
+  .key--picked .key__letter,
+  .key--picked .key__solfege {
+    color: var(--paper);
+  }
+
+  .key--correct {
+    border-color: var(--sage);
+    background: var(--sage);
+  }
+
+  .key--correct .key__letter,
+  .key--correct .key__solfege {
+    color: oklch(98% 0.01 150);
+  }
+
+  .key--wrong {
+    border-color: var(--clay);
+    background: var(--clay);
+  }
+
+  .key--wrong .key__letter,
+  .key--wrong .key__solfege {
+    color: oklch(97% 0.01 40);
+  }
+
+  /* ────────────────── 八度进度 ────────────────── */
+  .octave-progress {
+    display: flex;
+    align-items: baseline;
+    gap: 0.45rem;
+  }
+
+  .octave-progress__count {
+    font-family: var(--font-mono);
+    font-size: 1.7rem;
+    font-weight: 600;
+    color: var(--ember);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+
+  .octave-progress__sep {
+    color: var(--ink-3);
+    font-weight: 400;
+  }
+
+  .octave-progress__label {
+    font-size: 0.78rem;
+    color: var(--ink-3);
+    letter-spacing: 0.06em;
+  }
+
+  /* ────────────────── 记忆强度芯片 ────────────────── */
+  .mem {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s-2);
+  }
+
+  .mem__chip {
+    width: 2rem;
+    height: 2rem;
+    display: grid;
+    place-items: center;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-display);
+    font-variation-settings: var(--wonk-off);
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: oklch(98% 0.012 80);
+    text-shadow: 0 1px 2px oklch(25% 0.03 60 / 0.45);
+    box-shadow: var(--shadow-sunk);
+    border: 1px solid oklch(30% 0.03 60 / 0.25);
+  }
+
+  /* ────────────────── 小按钮 ────────────────── */
+  .btn--sm {
+    padding: 0.32rem 0.7rem;
+    font-size: 0.78rem;
+  }
+}

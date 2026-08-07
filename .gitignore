@@ -1,0 +1,12 @@
+# 依赖与构建产物（可重新生成，不要随身带走）
+node_modules/
+dist/
+.shots/
+
+# 本地缓存
+.vite/
+*.local
+
+# 系统文件
+Thumbs.db
+.DS_Store
