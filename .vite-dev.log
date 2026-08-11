@@ -1,0 +1,85 @@
+
+  [32m[1mVITE[22m v5.4.21[39m  [2mready in [0m[1m1931[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m5173[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://172.22.48.54:[1m5173[22m/[39m
+[2m10:39:14[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m10:39:33[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m10:39:50[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m10:41:21[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m10:41:28[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx[22m
+[2m10:41:40[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx[22m
+[2m10:41:50[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx[22m
+[2m10:42:44[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx[22m
+[2m10:44:06[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/ScaleTrainer.tsx[22m
+[2m10:46:38[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/ScaleTrainer.tsx[22m
+[2m10:47:56[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m10:48:04[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/ChordLibrary.tsx[22m
+[2m10:48:21[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/ChordLibrary.tsx[22m
+[2m10:49:09[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx[22m
+[2m10:49:39[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mdist/index.html[22m
+[2m11:04:49[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/RhythmBar.tsx[22m
+[2m11:05:00[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/ScaleTrainer.tsx[22m
+[2m11:05:27[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/ScaleTrainer.tsx[22m
+[2m11:05:38[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/ChordLibrary.tsx[22m
+[2m11:05:47[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/ChordLibrary.tsx[22m
+[2m11:06:14[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m11:06:24[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m11:06:59[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m11:07:14[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m11:07:37[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m11:08:47[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mdist/index.html[22m
+[2m11:33:02[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/ScaleTrainer.tsx[22m
+[2m11:33:17[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/ScaleTrainer.tsx[22m
+[2m11:33:24[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/ScaleTrainer.tsx[22m
+[2m11:33:34[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/ScaleTrainer.tsx[22m
+[2m11:34:16[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mdist/index.html[22m
+9m[2m/src/App.tsx[22m
+[2m10:41:50[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx[22m
+[2m10:42:44[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx[22m
+[2m10:47:56[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m10:48:04[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/ChordLibrary.tsx[22m
+[2m10:48:21[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/ChordLibrary.tsx[22m
+[2m10:49:09[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx[22m
+[2m10:49:39[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mdist/index.html[22m
+[2m11:05:38[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/ChordLibrary.tsx[22m
+[2m11:05:47[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/ChordLibrary.tsx[22m
+[2m11:06:14[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m11:06:24[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m11:06:59[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m11:07:14[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m11:07:37[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m11:08:47[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mdist/index.html[22m
+[2m11:34:16[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mdist/index.html[22m
+[2m14:46:11[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m14:49:22[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mdist/index.html[22m
+[2m14:57:29[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m14:57:43[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m15:09:14[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m15:09:23[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m15:09:45[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m15:09:57[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m15:10:04[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m15:10:37[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m15:11:27[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mdist/index.html[22m
+[2m15:22:44[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m15:22:54[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m15:23:15[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m15:23:32[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m15:26:56[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mdist/index.html[22m
+[2m15:36:13[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m15:36:13[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m15:38:24[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mdist/index.html[22m
+[2m15:51:23[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m15:51:36[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m15:51:48[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m15:52:10[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m15:53:02[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mdist/index.html[22m
+[2m15:54:03[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m15:54:43[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mdist/index.html[22m
+[2m16:03:33[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m16:04:14[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m16:04:56[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mdist/index.html[22m
+[2m16:21:18[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m15:54:43[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mdist/index.html[22m

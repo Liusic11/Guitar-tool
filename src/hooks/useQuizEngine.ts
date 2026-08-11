@@ -32,6 +32,7 @@ import {
   updateMastery,
   type MasteryMap,
 } from '../lib/srs'
+import type { ToneProfileId } from '../lib/audio'
 import type { LabelMode } from '../components/Fretboard'
 
 export type PracticeMode = 'auto' | 'manual'
@@ -58,6 +59,8 @@ export interface Settings {
   showAllNotes: boolean
   /** 智能加权抽题（SRS） */
   srsEnabled: boolean
+  /** 合成音色档位：原声 / 电吉他清音 / 电吉他过载 */
+  toneProfile: ToneProfileId
   volume: number
   muted: boolean
 }
@@ -79,6 +82,7 @@ export const DEFAULT_SETTINGS: Settings = {
   showOctaveTwins: true,
   showAllNotes: false,
   srsEnabled: true,
+  toneProfile: 'electric-clean',
   volume: 0.75,
   muted: false,
 }
@@ -230,6 +234,10 @@ export const useQuizEngine = (): QuizEngine => {
   useEffect(() => {
     audioEngine.setMuted(settings.muted)
   }, [settings.muted])
+
+  useEffect(() => {
+    audioEngine.setProfile(settings.toneProfile)
+  }, [settings.toneProfile])
 
   const update = useCallback(<K extends keyof Settings>(key: K, value: Settings[K]) => {
     setSettings((prev) => ({ ...prev, [key]: value }))

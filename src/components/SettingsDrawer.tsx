@@ -22,6 +22,7 @@ import {
 } from '../lib/music'
 import type { MasteryMap } from '../lib/srs'
 import type { LabelMode } from './Fretboard'
+import type { ToneProfileId } from '../lib/audio'
 import type { Settings, Stats } from '../hooks/useQuizEngine'
 
 interface SettingsDrawerProps {
@@ -37,6 +38,12 @@ interface SettingsDrawerProps {
   onResetSettings: () => void
   onResetMastery: () => void
 }
+
+const TONE_OPTIONS: { id: ToneProfileId; label: string }[] = [
+  { id: 'acoustic', label: '原声' },
+  { id: 'electric-clean', label: '电吉他清音' },
+  { id: 'electric-overdrive', label: '电吉他过载' },
+]
 
 /** 把某音级的掌握度聚合成「记忆强度」，用于展示面板 */
 const noteStrength = (
@@ -371,6 +378,31 @@ export const SettingsDrawer = memo(function SettingsDrawer({
             <button className="btn btn--ghost btn--sm" type="button" onClick={onResetMastery}>
               重置记忆库
             </button>
+          </div>
+
+          {/* ══════════ 音色 ══════════ */}
+          <p className="section-label">音色</p>
+
+          <div className="field">
+            <label className="field__label" htmlFor="tone">
+              合成音色
+            </label>
+            <div className="segmented" role="group" aria-label="合成音色">
+              {TONE_OPTIONS.map((o) => (
+                <button
+                  key={o.id}
+                  className="segmented__item"
+                  aria-pressed={settings.toneProfile === o.id}
+                  onClick={() => update('toneProfile', o.id)}
+                  type="button"
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+            <p className="field__hint">
+              原声像木箱、偏闷；电吉他清音更亮更干；过载带一点 rock / funk 的咬音。
+            </p>
           </div>
 
           {/* ══════════ 声音 ══════════ */}

@@ -1,0 +1,577 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fretboard, type Highlight } from './Fretboard'
+import { RhythmBar } from './RhythmBar'
+import { SCALES, scalePositions, scaleBoxes, type ScaleDef, type ScaleNote } from '../lib/scales'
+import { audioEngine } from '../lib/audio'
+import { letterOf, type Tuning } from '../lib/music'
+
+/** 半音 → 音阶级数名 */
+const DEGREE_NAMES: Record<number, string> = {
+  0: 'R',
+  2: '2',
+  3: '♭3',
+  4: '3',
+  5: '4',
+  6: '♭5',
+  7: '5',
+  8: '♭6',
+  9: '6',
+  10: '♭7',
+  11: '7',
+}
+const degreeName = (iv: number): string => DEGREE_NAMES[iv] ?? String(iv)
+
+const ROOT_LABELS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+
+/** 弦号 6→1，用于把位形状卡 */
+const STRING_ORDER = [6, 5, 4, 3, 2, 1]
+
+type Mode = 'map' | 'sequence' | 'ear'
+
+interface ScaleTrainerProps {
+  tuning: Tuning
+}
+
+export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
+  const [rootPc, setRootPc] = useState(9) // A
+  const [scaleId, setScaleId] = useState('minorPent')
+  const [mode, setMode] = useState<Mode>('map')
+
+  const def = useMemo<ScaleDef>(
+    () => SCALES.find((s) => s.id === scaleId) ?? SCALES[0],
+    [scaleId],
+  )
+
+  const boxes = useMemo(
+    () => scaleBoxes(tuning, rootPc, def.formula, 15),
+    [tuning, rootPc, def],
+  )
+
+  const [boxIndex, setBoxIndex] = useState(0)
+  const [showAll, setShowAll] = useState(false)
+
+  const isPenta = def.category === 'pentatonic' || def.category === 'blues'
+
+  // 根音/音阶改变时，回到主形状（根音把位）；没有则回到最低把位
+  useEffect(() => {
+    const rootIdx = boxes.findIndex((b) => b.isRoot)
+    setBoxIndex(rootIdx >= 0 ? rootIdx : 0)
+    setShowAll(false)
+  }, [tuning, rootPc, def, boxes])
+
+  const currentRange: readonly [number, number] = useMemo(() => {
+    if (showAll || boxes.length === 0) return [0, 15]
+    const b = boxes[boxIndex]
+    return [b.lo, b.hi]
+  }, [showAll, boxes, boxIndex])
+
+  const positions = useMemo(
+    () => scalePositions(tuning, rootPc, def.formula, currentRange),
+    [tuning, rootPc, def, currentRange],
+  )
+
+  // 「跟弹」模式：把当前把位内的音按音高升序排成一条连奏路线
+  const run = useMemo<ScaleNote[]>(() => {
+    const sorted = [...positions].sort((a, b) => a.midi - b.midi)
+    const firstRoot = sorted.find((p) => p.degree === 0)
+    const startIdx = firstRoot ? sorted.indexOf(firstRoot) : 0
+    const len = def.formula.length * 2 + 1
+    return sorted.slice(startIdx, startIdx + len)
+  }, [positions, def])
+
+  const [seqIdx, setSeqIdx] = useState(0)
+  const [earTarget, setEarTarget] = useState<ScaleNote | null>(null)
+  const [earGuessed, setEarGuessed] = useState<ScaleNote | null>(null)
+  const [earVerdict, setEarVerdict] = useState<'none' | 'hit' | 'miss'>('none')
+
+  // 切换音阶 / 根音 / 模式 / 把位时复位练习状态
+  useEffect(() => {
+    setSeqIdx(0)
+    setEarTarget(null)
+    setEarGuessed(null)
+    setEarVerdict('none')
+  }, [rootPc, scaleId, mode, currentRange.join(',')])
+
+  // 进入「听音」模式时挑一个目标
+  useEffect(() => {
+    if (mode === 'ear' && !earTarget && positions.length > 0) {
+      setEarTarget(positions[Math.floor(Math.random() * positions.length)])
+    }
+  }, [mode, earTarget, positions])
+
+  const playNote = useCallback((n: ScaleNote) => {
+    audioEngine.pluck(n.midi, { stringNumber: n.string, velocity: 0.9 })
+  }, [])
+
+  const demoTimer = useRef<number | null>(null)
+  const playDemo = useCallback(() => {
+    const notes = [...positions].sort((a, b) => a.midi - b.midi)
+    if (notes.length === 0) return
+    void audioEngine.unlock()
+    const up = notes
+    const down = [...notes].reverse()
+    const sequence = [...up, ...down]
+    let i = 0
+    const step = () => {
+      if (i >= sequence.length) return
+      playNote(sequence[i])
+      i++
+      demoTimer.current = window.setTimeout(step, 260)
+    }
+    if (demoTimer.current) window.clearTimeout(demoTimer.current)
+    step()
+  }, [positions, playNote])
+
+  useEffect(() => {
+    return () => {
+      if (demoTimer.current) window.clearTimeout(demoTimer.current)
+    }
+  }, [])
+
+  const highlights = useMemo<Highlight[]>(() => {
+    if (mode === 'map') {
+      return positions.map((p) => ({
+        string: p.string,
+        fret: p.fret,
+        kind: p.degree === 0 ? 'answer' : 'secondary',
+        label: degreeName(def.formula[p.degree]),
+      }))
+    }
+    if (mode === 'sequence') {
+      return run.map((p, i) => ({
+        string: p.string,
+        fret: p.fret,
+        kind: i < seqIdx ? 'secondary' : i === seqIdx ? 'answer' : 'ghost',
+        label: degreeName(def.formula[p.degree]),
+      }))
+    }
+    // ear
+    const out: Highlight[] = []
+    if (earTarget) {
+      out.push({ string: earTarget.string, fret: earTarget.fret, kind: 'answer' })
+    }
+    if (earVerdict === 'miss' && earGuessed) {
+      out.push({ string: earGuessed.string, fret: earGuessed.fret, kind: 'miss' })
+    }
+    return out
+  }, [mode, positions, run, seqIdx, def, earTarget, earGuessed, earVerdict])
+
+  const handleFretClick = useCallback(
+    (stringNumber: number, fret: number) => {
+      void audioEngine.unlock()
+      const clicked = positions.find((p) => p.string === stringNumber && p.fret === fret)
+
+      if (mode === 'map') {
+        if (clicked) playNote(clicked)
+        return
+      }
+
+      if (mode === 'sequence') {
+        const target = run[seqIdx]
+        if (clicked && target && clicked.string === target.string && clicked.fret === target.fret) {
+          playNote(target)
+          setSeqIdx((i) => Math.min(i + 1, run.length))
+        } else if (clicked) {
+          playNote(clicked)
+        }
+        return
+      }
+
+      // ear
+      if (!earTarget) return
+      if (clicked && clicked.string === earTarget.string && clicked.fret === earTarget.fret) {
+        setEarGuessed(clicked)
+        setEarVerdict('hit')
+        playNote(clicked)
+        window.setTimeout(() => {
+          const next = positions[Math.floor(Math.random() * positions.length)]
+          setEarTarget(next)
+          setEarGuessed(null)
+          setEarVerdict('none')
+        }, 750)
+      } else if (clicked) {
+        setEarGuessed(clicked)
+        setEarVerdict('miss')
+        playNote(clicked)
+      }
+    },
+    [mode, positions, run, seqIdx, earTarget, playNote],
+  )
+
+  const noteNames = def.formula.map((iv) => letterOf(((rootPc + iv) % 12 + 12) % 12))
+  const scaleComplete = mode === 'sequence' && seqIdx >= run.length
+  const chordRootName = ROOT_LABELS[rootPc]
+
+  // ── 老师口吻的左侧乐理提示（随音阶 / 把位变化）──
+  const teacherTip = useMemo(() => {
+    const root = chordRootName
+    const shape = boxes[boxIndex]?.shapeName
+    const isRootBox = boxes[boxIndex]?.isRoot ?? false
+
+    const boxAdvice: Record<string, string> = {
+      E: `这个 E 形把位是最经典的「主形状」，根音落在 6 弦和 1 弦的同品。先找到这两颗橙色根音，它们是你在这个把位里的「家」。`,
+      D: `D 形把位的最低音是 5 级，所以听起来比 E 形更「飘」一点。注意根音在 4 弦和 2 弦上。`,
+      C: `C 形跨度最大，手要稍微张开。它连接了低把位和高把位，练熟它你就能从 9 品顺滑地爬到 12 品。`,
+      A: `A 形在 12 品附近，是 E 形的高八度。根音又回到 6 弦和 1 弦，和 Box 1 手指形状几乎一样。`,
+      G: `G 形位置最低，经常会用到空弦。它是把 5 个形状「接回」琴枕的那一块，别忽略它。`,
+    }
+
+    const tips: Record<
+      string,
+      { why: string; ear: string; songs: string; box: string }
+    > = {
+      minorPent: {
+        why: `${root} 小调五声是吉他手的第一把钥匙，也是 blues / rock solo 的「母语」。它只有 5 个音，却把最容易冲突的 4 级、7 级拿掉了，所以怎么弹都不太难听。`,
+        ear: `闭上眼睛弹，你会发现它有一种「安全的暗色」——这是因为它没有半音张力，特别适合即兴时瞎摸也不会太歪。`,
+        songs: `从《Back in Black》到《Stairway to Heaven》的 solo，再到无数 blues，都是它。你听到的「摇滚味道」多半来自这里。`,
+        box: boxAdvice[shape ?? ''] ?? `先找到这个把位里的橙色根音，记住它们在哪几根弦上。根音是你的「落脚点」，其他音都是围着它转的。`,
+      },
+      blues: {
+        why: `${root} 布鲁斯音阶 = 小调五声 + 一颗「蓝调音」（♭5）。这颗音故意不在调内，所以一出现就有种「悬而未决」的哭腔。`,
+        ear: `蓝调音不要一直按着，像撒胡椒面一样轻轻带过，或者滑到 5 级解决掉。听感上它像是一个「问题」，5 级是「答案」。`,
+        songs: `B.B. King《The Thrill Is Gone》、Jimi Hendrix《Red House》——这些眼泪和烟味，一半来自蓝调音。`,
+        box: boxAdvice[shape ?? ''] ?? `在小调五声把位里找到那颗额外的 ♭5（比 5 级低半音），用手指轻轻点一下再滑开，体会那个「蓝」味。`,
+      },
+      majorPent: {
+        why: `${root} 大调五声是小调五声的「阳光版」。有趣的是：它和关系小调五声共享同一套把位，只是根音换了一颗音。`,
+        ear: `明亮、顺耳、没有尖锐冲突。你听到的「乡村/流行」solo 色彩，很多时候就是大调五声。`,
+        songs: `Pink Floyd《Wish You Were Here》、大量乡村 solo。把小调五声的根音当成 ♭3，大调根音就在它上方小三度。`,
+        box: boxAdvice[shape ?? ''] ?? `在这个把位里，找到大调根音（不是橙色那颗，而是比它高小三度的音），试着把这两颗音当成新的「家」。`,
+      },
+      major: {
+        why: `${root} 自然大调是西方音乐的地基，所有调式都是从它「重新起算」得来的。先把大调在指板上走顺，后面调式只是换起点。`,
+        ear: `记住那条幼儿园的旋律：Do Re Mi Fa Sol La Ti Do。大调的秘密就在 3-4 和 7-1 这两处半音，其他地方都是全音。`,
+        songs: `从儿歌到古典到流行，无处不在。它是你理解「为什么这个和弦进行听起来这样」的入口。`,
+        box: `这个 5 品窗口里，先找到 3-4 和 7-1 这两组半音。半音是音阶的「台阶转折点」，找到了，整条音阶就不会迷路。`,
+      },
+      minor: {
+        why: `${root} 自然小调是大调的「暗面」。它和关系大调共享 7 个音，只是从不同的音开始数，所以色彩立刻沉了下来。`,
+        ear: `比大调更内向、叙事感更强。把它想成「大调降了 3、6、7 级」，这三个降号就是小调悲伤的来源。`,
+        songs: `很多金属 ballad、抒情摇滚，比如《Europa》的 solo 味道。它适合在 minor 和弦上走旋律。`,
+        box: `在这个位置里，重点听 ♭3 和 ♭6 的音高。它们和大调版的 3、6 只差半音，但情绪差很多。`,
+      },
+      dorian: {
+        why: `${root} 多利亚 = 自然小调把 6 级抬高半音。于是它既有小三度的暗，又有一个亮晶晶的 6 级——这是 funk / jazz minor 的灵魂。`,
+        ear: `弹到 6 级的时候，会有一种「暗里透亮」的感觉。想让小调 solo 不那么悲，就多利亚。`,
+        songs: `Santana《Oye Como Va》、Miles Davis《So What》。这些曲子的「异域感」很多来自多利亚。`,
+        box: `在这个把位里，找到 6 级（它比自然小调的 ♭6 高半音）。来回弹 ♭3 → 4 → 5 → 6，体会那个「亮」点。`,
+      },
+      mixolydian: {
+        why: `${root} 混合利底亚 = 自然大调把 7 级降半音。它和大调几乎一样，只差这一个 ♭7，但这正是属七和弦张力的来源。`,
+        ear: `大调的明亮底色，加上 ♭7 的一点「悬」。在属七和弦上 solo 时，它是最自然的选择。`,
+        songs: `Guns N' Roses《Sweet Child O' Mine》的 riff、Grateful Dead 很多 solo。听起来「亮但有点野」。`,
+        box: `重点听 ♭7 这颗音。试着 1 → 2 → 3 → 4 → 5 → 6 → ♭7 → 1，感受它怎么「回家」。`,
+      },
+    }
+
+    const t = tips[def.id] ?? {
+      why: `${root} ${def.label} 是一个有用的音阶。`,
+      ear: def.color,
+      songs: def.usage,
+      box: `先找到根音位置，再顺着把位上下走。`,
+    }
+
+    const rawTags = [def.color.split(' / ')[0] ?? def.color, def.usage.split(/[、，,]/)[0] ?? def.usage]
+    const tags = Array.from(new Set(rawTags.filter(Boolean)))
+
+    return {
+      ...t,
+      headline: isRootBox ? `这个把位是「主形状」，建议从这里开始啃。` : `这个把位和相邻形状咬合，练熟它指板就连起来了。`,
+      tags,
+    }
+  }, [def, chordRootName, boxes, boxIndex])
+
+  // 把位形状卡：每根弦在当前把位里有哪些音，按品排列
+  const shapeRows = useMemo(() => {
+    const rows = STRING_ORDER.map((sn) => {
+      const notes = positions.filter((n) => n.string === sn).sort((a, b) => a.fret - b.fret)
+      return { string: sn, notes }
+    })
+    return rows
+  }, [positions])
+
+  const boxLabel = useMemo(() => {
+    if (showAll || boxes.length === 0) return '全指板'
+    const b = boxes[boxIndex]
+    const pos = boxIndex + 1
+    const shape = b.shapeName ? ` · ${b.shapeName}形` : ''
+    const root = b.isRoot ? ' · ★主形状' : ''
+    return `位置 ${pos} / ${boxes.length}${shape}${root}（${b.lo}–${b.hi} 品）`
+  }, [showAll, boxes, boxIndex])
+
+  return (
+    <main className="module-stage scale-stage">
+      <div className="module-scroll">
+        <div className="chord-panel scale-panel">
+          {/* 控制区 */}
+        <div className="chord-controls">
+          <div className="field">
+            <label className="field__label">根音</label>
+            <div className="segmented segmented--wrap" role="group" aria-label="根音">
+              {ROOT_LABELS.map((n, i) => (
+                <button
+                  key={n}
+                  className="segmented__item"
+                  aria-pressed={rootPc === i}
+                  onClick={() => setRootPc(i)}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="field field--scale">
+            <label className="field__label">音阶</label>
+            <div className="segmented" role="group" aria-label="音阶类型">
+              {SCALES.map((s) => (
+                <button
+                  key={s.id}
+                  className="segmented__item"
+                  aria-pressed={scaleId === s.id}
+                  onClick={() => setScaleId(s.id)}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="field">
+            <label className="field__label">练习方式</label>
+            <div className="segmented" role="group" aria-label="练习方式">
+              <button
+                className="segmented__item"
+                aria-pressed={mode === 'map'}
+                onClick={() => setMode('map')}
+              >
+                地图
+              </button>
+              <button
+                className="segmented__item"
+                aria-pressed={mode === 'sequence'}
+                onClick={() => setMode('sequence')}
+              >
+                跟弹
+              </button>
+              <button
+                className="segmented__item"
+                aria-pressed={mode === 'ear'}
+                onClick={() => setMode('ear')}
+              >
+                听音
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* 把位导航 */}
+        <div className="scale-box-bar">
+          <button
+            className="btn btn--sm btn--ghost"
+            disabled={showAll || boxIndex <= 0}
+            onClick={() => setBoxIndex((i) => Math.max(0, i - 1))}
+          >
+            ← 上一个位置
+          </button>
+          <span className="scale-box-bar__label">{boxLabel}</span>
+          <button
+            className="btn btn--sm btn--ghost"
+            disabled={showAll || boxIndex >= boxes.length - 1}
+            onClick={() => setBoxIndex((i) => Math.min(boxes.length - 1, i + 1))}
+          >
+            下一个位置 →
+          </button>
+          {boxes.some((b) => b.isRoot) && (
+            <button
+              className="btn btn--sm btn--ghost"
+              disabled={!showAll && boxes[boxIndex]?.isRoot}
+              onClick={() => {
+                const i = boxes.findIndex((b) => b.isRoot)
+                if (i >= 0) setBoxIndex(i)
+              }}
+              title="跳到根音把位（主形状）"
+            >
+              ★ 主形状
+            </button>
+          )}
+          <button
+            className={`btn btn--sm${showAll ? ' btn--primary' : ' btn--ghost'}`}
+            onClick={() => setShowAll((v) => !v)}
+            style={{ marginLeft: 'auto' }}
+          >
+            {showAll ? '看当前位置' : '看全指板'}
+          </button>
+        </div>
+
+        {/* 主视图 */}
+        <div className="scale-layout">
+          <section className="chord-figure scale-figure" aria-label="音阶指板">
+            <div className="chord-head">
+              <span className="chord-head__name">
+                {chordRootName} {def.label}
+              </span>
+              <span className="chord-head__type">{boxLabel}</span>
+              <span className="chord-head__formula">{def.formula.join('·')}</span>
+            </div>
+
+            {mode === 'sequence' && (
+              <div className="scale-progress">
+                进度 {Math.min(seqIdx, run.length)} / {run.length}
+                {scaleComplete && <span className="scale-progress__done"> ✓ 完成一轮！</span>}
+                <button
+                  className="btn btn--sm btn--ghost"
+                  onClick={() => setSeqIdx(0)}
+                  style={{ marginLeft: '0.6rem' }}
+                >
+                  重来
+                </button>
+              </div>
+            )}
+
+            {mode === 'ear' && (
+              <div className="scale-progress">
+                {earVerdict === 'hit' && <span className="scale-progress__done">✓ 找对了！</span>}
+                {earVerdict === 'miss' && <span className="scale-progress__miss">✗ 再听一次</span>}
+                {earVerdict === 'none' && <span>听这个音，在指板上点出来 →</span>}
+                <button
+                  className="btn btn--sm btn--ghost"
+                  onClick={() => earTarget && playNote(earTarget)}
+                  style={{ marginLeft: '0.6rem' }}
+                >
+                  ▶ 再听
+                </button>
+              </div>
+            )}
+
+            <Fretboard
+              tuning={tuning}
+              maxFret={15}
+              highlights={highlights}
+              targetString={null}
+              scopeRange={currentRange}
+              interactive
+              showAllNotes={false}
+              labelMode="letter"
+              ringingString={null}
+              onFretClick={handleFretClick}
+            />
+
+            {/* 组成音：移到指板下方 */}
+            <div className="scale-composition">
+              <span>组成音：</span>
+              <span className="scale-composition__notes">{noteNames.join(' · ')}</span>
+              <span style={{ marginLeft: 'auto', fontSize: '0.8rem', color: 'var(--ink-3)' }}>
+                {def.category === 'blues' ? '5 音 + 蓝调音' : `${def.formula.length} 音`}
+              </span>
+            </div>
+
+            {/* 把位形状卡：更直观的「每根弦按哪几品」 */}
+            <div className="scale-shape" aria-label="把位形状卡">
+              <p className="scale-shape__title">
+                把位形状{boxes[boxIndex]?.shapeName ? `（${boxes[boxIndex].shapeName}形）` : ''} · 每根弦上的音
+              </p>
+              <div className="scale-shape__grid">
+                {shapeRows.map(({ string, notes }) => (
+                  <div key={string} className="scale-shape__row">
+                    <span className="scale-shape__string">{string}弦</span>
+                    <div className="scale-shape__frets">
+                      {notes.length === 0 ? (
+                        <span className="scale-shape__empty">—</span>
+                      ) : (
+                        notes.map((n) => (
+                          <span
+                            key={`${n.string}-${n.fret}`}
+                            className={`scale-shape__note${n.degree === 0 ? ' is-root' : ''}`}
+                          >
+                            {n.fret}品
+                            <small className="scale-shape__degree">
+                              {degreeName(def.formula[n.degree])}
+                            </small>
+                          </span>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+          </section>
+
+          <section className="chord-theory scale-theory" aria-label="音阶乐理">
+            <h3 className="chord-theory__title">为什么叫「{def.label}」</h3>
+            <p className="chord-theory__lead">{def.theory}</p>
+
+            <dl className="chord-theory__grid">
+              <div>
+                <dt>听感 / 色彩</dt>
+                <dd>{def.color}</dd>
+              </div>
+              <div>
+                <dt>常见用法</dt>
+                <dd>{def.usage}</dd>
+              </div>
+            </dl>
+
+            <div className="chord-theory__block">
+              <h4 className="chord-theory__h">怎么练这个位置</h4>
+              <p className="chord-theory__p">
+                五声被拆成 {isPenta ? '5 个 CAGED 形状（E‑D‑C‑A‑G，彼此咬合覆盖全琴颈）' : '7 个位置'}，
+                你正在看的是其中一个。1）先看形状卡，记住每根弦上
+                <strong>根音（R，橙色）</strong>的位置；2）用「跟弹」模式从低音到高音走一遍；
+                3）闭上眼睛，凭肌肉记忆按出来。用顶部「上一个位置 / 下一个位置」顺着琴颈往上爬，
+                把 {isPenta ? '5 个形状' : '7 个位置'} 都啃熟，整条指板就通了。
+              </p>
+            </div>
+
+            <div className="chord-theory__block">
+              <h4 className="chord-theory__h">跟节拍器</h4>
+              <p className="chord-theory__p">
+                打开底部节奏条，用 8 分音符稳练。先慢（60 BPM），每个音都卡在拍上；
+                再提到 90 BPM。节奏稳了，音阶才真正属于你。
+              </p>
+            </div>
+
+            {/* 老师提示：用 skill 老师口吻写的实战乐理，放在右侧填补空白 */}
+            <aside className="scale-teacher-tip" aria-label="老师提示">
+              <p className="scale-teacher-tip__head">老师提示 · {teacherTip.headline}</p>
+              <div className="scale-teacher-tip__body">
+                <p className="scale-teacher-tip__p">
+                  <strong>为什么重要：</strong>
+                  {teacherTip.why}
+                </p>
+                <p className="scale-teacher-tip__p">
+                  <strong>耳朵记忆点：</strong>
+                  {teacherTip.ear}
+                </p>
+                <p className="scale-teacher-tip__p">
+                  <strong>在歌里：</strong>
+                  {teacherTip.songs}
+                </p>
+                <p className="scale-teacher-tip__p">
+                  <strong>这个把位怎么练：</strong>
+                  {teacherTip.box}
+                </p>
+                <div className="scale-teacher-tip__tags">
+                  {teacherTip.tags.map((tag, i) => (
+                    <span key={i} className="scale-teacher-tip__tag">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </aside>
+
+            <button className="btn btn--primary scale-demo" onClick={playDemo} type="button">
+              ▶ 演示这个把位（上行 + 下行）
+            </button>
+          </section>
+        </div>
+      </div>
+      </div>
+
+      <RhythmBar />
+    </main>
+  )
+}

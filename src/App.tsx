@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Fretboard, type Highlight } from './components/Fretboard'
 import { PromptStage } from './components/PromptStage'
+import { ChordLibrary } from './components/ChordLibrary'
+import { ScaleTrainer } from './components/ScaleTrainer'
 import { SettingsDrawer } from './components/SettingsDrawer'
 import { useQuizEngine } from './hooks/useQuizEngine'
 import { MAX_FRET } from './lib/music'
@@ -39,7 +41,17 @@ export default function App() {
   } = engine
 
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [view, setView] = useState<'train' | 'chords' | 'scales'>('train')
   const task = settings.task
+
+  // 离开指板训练时若还在跑就先停掉，避免两套声音打架
+  const switchView = useCallback(
+    (next: 'train' | 'chords' | 'scales') => {
+      if (next !== 'train' && running) stop()
+      setView(next)
+    },
+    [running, stop],
+  )
 
   /* ─────────────── 指板高亮 ─────────────── */
 
@@ -136,6 +148,13 @@ export default function App() {
       const target = e.target as HTMLElement | null
       if (target && ['INPUT', 'SELECT', 'TEXTAREA'].includes(target.tagName)) return
 
+      // 和弦参考视图下，只保留设置 / 退出快捷键，其余交给和弦模块自行处理
+      if (view !== 'train') {
+        if (e.key === 's' || e.key === 'S') setSettingsOpen((v) => !v)
+        else if (e.key === 'Escape' && settingsOpen) setSettingsOpen(false)
+        return
+      }
+
       switch (e.key) {
         case ' ':
           e.preventDefault()
@@ -191,7 +210,7 @@ export default function App() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [primaryAction, running, phase, next, start, replay, update, stop, settingsOpen])
+  }, [primaryAction, running, phase, next, start, replay, update, stop, settingsOpen, view])
 
   /* ─────────────── 首次交互解锁音频 ─────────────── */
 
@@ -217,46 +236,74 @@ export default function App() {
         </div>
 
         <div className="topbar__controls">
-          <div className="segmented" role="group" aria-label="练习任务">
+          <div className="segmented" role="group" aria-label="模块">
             <button
               className="segmented__item"
-              aria-pressed={task === 'find'}
-              onClick={() => update('task', 'find')}
+              aria-pressed={view === 'train'}
+              onClick={() => switchView('train')}
             >
-              找位置
+              指板训练
             </button>
             <button
               className="segmented__item"
-              aria-pressed={task === 'name'}
-              onClick={() => update('task', 'name')}
+              aria-pressed={view === 'chords'}
+              onClick={() => switchView('chords')}
             >
-              认音名
+              和弦参考
             </button>
             <button
               className="segmented__item"
-              aria-pressed={task === 'octave'}
-              onClick={() => update('task', 'octave')}
+              aria-pressed={view === 'scales'}
+              onClick={() => switchView('scales')}
             >
-              找八度
+              音阶
             </button>
           </div>
 
-          <div className="segmented" role="group" aria-label="练习节奏">
-            <button
-              className="segmented__item"
-              aria-pressed={settings.mode === 'auto'}
-              onClick={() => update('mode', 'auto')}
-            >
-              自动
-            </button>
-            <button
-              className="segmented__item"
-              aria-pressed={settings.mode === 'manual'}
-              onClick={() => update('mode', 'manual')}
-            >
-              手动
-            </button>
-          </div>
+          {view === 'train' && (
+            <>
+              <div className="segmented" role="group" aria-label="练习任务">
+                <button
+                  className="segmented__item"
+                  aria-pressed={task === 'find'}
+                  onClick={() => update('task', 'find')}
+                >
+                  找位置
+                </button>
+                <button
+                  className="segmented__item"
+                  aria-pressed={task === 'name'}
+                  onClick={() => update('task', 'name')}
+                >
+                  认音名
+                </button>
+                <button
+                  className="segmented__item"
+                  aria-pressed={task === 'octave'}
+                  onClick={() => update('task', 'octave')}
+                >
+                  找八度
+                </button>
+              </div>
+
+              <div className="segmented" role="group" aria-label="练习节奏">
+                <button
+                  className="segmented__item"
+                  aria-pressed={settings.mode === 'auto'}
+                  onClick={() => update('mode', 'auto')}
+                >
+                  自动
+                </button>
+                <button
+                  className="segmented__item"
+                  aria-pressed={settings.mode === 'manual'}
+                  onClick={() => update('mode', 'manual')}
+                >
+                  手动
+                </button>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="stats" aria-live="polite">
@@ -303,44 +350,52 @@ export default function App() {
         </div>
       </header>
 
-      {/* ══════════ 出题舞台 ══════════ */}
-      <main className="stage">
-        <PromptStage
-          phase={phase}
-          mode={settings.mode}
-          task={task}
-          question={question}
-          verdict={verdict}
-          cycleToken={cycleToken}
-          intervalSec={settings.intervalSec}
-          labelMode={settings.labelMode}
-          pickedNote={pickedNote}
-          markedCount={marked.size}
-          targetCount={question?.targets.length ?? 0}
-          showSharps={settings.scope.includeAccidentals}
-          onStart={start}
-          onReveal={reveal}
-          onNext={next}
-          onReplay={replay}
-          onAnswerNote={answerNote}
-        />
-      </main>
+      {/* ══════════ 主舞台：按模块切换 ══════════ */}
+      {view === 'train' ? (
+        <main className="stage">
+          <PromptStage
+            phase={phase}
+            mode={settings.mode}
+            task={task}
+            question={question}
+            verdict={verdict}
+            cycleToken={cycleToken}
+            intervalSec={settings.intervalSec}
+            labelMode={settings.labelMode}
+            pickedNote={pickedNote}
+            markedCount={marked.size}
+            targetCount={question?.targets.length ?? 0}
+            showSharps={settings.scope.includeAccidentals}
+            onStart={start}
+            onReveal={reveal}
+            onNext={next}
+            onReplay={replay}
+            onAnswerNote={answerNote}
+          />
+        </main>
+      ) : view === 'chords' ? (
+        <ChordLibrary tuning={tuning} settings={settings} />
+      ) : (
+        <ScaleTrainer tuning={tuning} />
+      )}
 
       {/* ══════════ 指板 ══════════ */}
-      <section className="fretboard-zone" aria-label="吉他指板">
-        <Fretboard
-          tuning={tuning}
-          maxFret={MAX_FRET}
-          highlights={highlights}
-          targetString={phase === 'asking' && question ? question.string : null}
-          scopeRange={settings.scope.fretRange}
-          interactive
-          showAllNotes={settings.showAllNotes}
-          labelMode={settings.labelMode}
-          ringingString={ringingString}
-          onFretClick={handleFretClick}
-        />
-      </section>
+      {view === 'train' && (
+        <section className="fretboard-zone" aria-label="吉他指板">
+          <Fretboard
+            tuning={tuning}
+            maxFret={MAX_FRET}
+            highlights={highlights}
+            targetString={phase === 'asking' && question ? question.string : null}
+            scopeRange={settings.scope.fretRange}
+            interactive
+            showAllNotes={settings.showAllNotes}
+            labelMode={settings.labelMode}
+            ringingString={ringingString}
+            onFretClick={handleFretClick}
+          />
+        </section>
+      )}
 
       {/* ══════════ 设置 ══════════ */}
       <SettingsDrawer
