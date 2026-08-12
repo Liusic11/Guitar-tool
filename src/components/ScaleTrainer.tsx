@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Fretboard, type Highlight } from './Fretboard'
 import { RhythmBar } from './RhythmBar'
-import { SCALES, scalePositions, scaleBoxes, type ScaleDef, type ScaleNote } from '../lib/scales'
+import { ScaleConnection } from './ScaleConnection'
+import { SCALES, scalePositions, scaleBoxes, scalePattern, PATTERNS, type ScaleDef, type ScaleNote, type PatternId } from '../lib/scales'
 import { audioEngine } from '../lib/audio'
-import { letterOf, type Tuning } from '../lib/music'
+import { letterOf, type Tuning, type PitchClass } from '../lib/music'
+import { sessionStore } from '../lib/session'
 
 /** 半音 → 音阶级数名 */
 const DEGREE_NAMES: Record<number, string> = {
@@ -26,16 +28,23 @@ const ROOT_LABELS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#',
 /** 弦号 6→1，用于把位形状卡 */
 const STRING_ORDER = [6, 5, 4, 3, 2, 1]
 
-type Mode = 'map' | 'sequence' | 'ear'
+type Mode = 'map' | 'follow' | 'pattern' | 'ear'
 
 interface ScaleTrainerProps {
   tuning: Tuning
 }
 
 export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
-  const [rootPc, setRootPc] = useState(9) // A
-  const [scaleId, setScaleId] = useState('minorPent')
+  // 贯通层：根音与音阶都从共享 store 初始化，跨模块跳转后能接上
+  const [rootPc, setRootPc] = useState<PitchClass>(() => (sessionStore.get().rootPc as PitchClass) ?? 9)
+  const [scaleId, setScaleId] = useState<string>(() => sessionStore.get().scaleId ?? 'minorPent')
   const [mode, setMode] = useState<Mode>('map')
+  const [patternId, setPatternId] = useState<PatternId>('seq3')
+
+  // 根音变化即同步到共享 store，让和弦页 / 音阶页感知到同一把钥匙
+  useEffect(() => {
+    sessionStore.setRoot(rootPc)
+  }, [rootPc])
 
   const def = useMemo<ScaleDef>(
     () => SCALES.find((s) => s.id === scaleId) ?? SCALES[0],
@@ -70,7 +79,7 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
     [tuning, rootPc, def, currentRange],
   )
 
-  // 「跟弹」模式：把当前把位内的音按音高升序排成一条连奏路线
+  // 「跟拍」模式：把当前把位内的音按音高升序排成一条连奏路线
   const run = useMemo<ScaleNote[]>(() => {
     const sorted = [...positions].sort((a, b) => a.midi - b.midi)
     const firstRoot = sorted.find((p) => p.degree === 0)
@@ -79,10 +88,35 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
     return sorted.slice(startIdx, startIdx + len)
   }, [positions, def])
 
+  // 「模进」模式：把当前把位里的音阶音排成一条造句路线（3 音一组 / 八度跳 / 琶音 / blues）
+  const patternRun = useMemo<ScaleNote[]>(
+    () => scalePattern(positions, def.formula, patternId),
+    [positions, def, patternId],
+  )
+
   const [seqIdx, setSeqIdx] = useState(0)
   const [earTarget, setEarTarget] = useState<ScaleNote | null>(null)
   const [earGuessed, setEarGuessed] = useState<ScaleNote | null>(null)
   const [earVerdict, setEarVerdict] = useState<'none' | 'hit' | 'miss'>('none')
+
+  // 跟拍 / 模进（bar 联动）：把「当前序号 / 路线」放进 ref，避免 onBeat 闭包拿到旧值
+  const activeRouteRef = useRef<ScaleNote[]>([])
+  activeRouteRef.current = mode === 'follow' ? run : mode === 'pattern' ? patternRun : []
+  const seqIdxRef = useRef(seqIdx)
+  seqIdxRef.current = seqIdx
+
+  // 演示：边播边高亮每个音
+  const [demoActive, setDemoActive] = useState(false)
+  const [demoIdx, setDemoIdx] = useState(-1)
+  const demoActiveRef = useRef(false)
+  demoActiveRef.current = demoActive
+  const demoTimer = useRef<number | null>(null)
+  const demoRoute = useMemo<ScaleNote[]>(() => {
+    if (!demoActive) return []
+    if (mode === 'pattern') return patternRun
+    const sorted = [...positions].sort((a, b) => a.midi - b.midi)
+    return [...sorted, ...sorted.slice().reverse()]
+  }, [demoActive, mode, positions, patternRun])
 
   // 切换音阶 / 根音 / 模式 / 把位时复位练习状态
   useEffect(() => {
@@ -90,7 +124,10 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
     setEarTarget(null)
     setEarGuessed(null)
     setEarVerdict('none')
-  }, [rootPc, scaleId, mode, currentRange.join(',')])
+    setDemoActive(false)
+    setDemoIdx(-1)
+    if (demoTimer.current) window.clearTimeout(demoTimer.current)
+  }, [rootPc, scaleId, mode, patternId, currentRange.join(',')])
 
   // 进入「听音」模式时挑一个目标
   useEffect(() => {
@@ -103,24 +140,38 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
     audioEngine.pluck(n.midi, { stringNumber: n.string, velocity: 0.9 })
   }, [])
 
-  const demoTimer = useRef<number | null>(null)
+  // 底部节拍器每到一个四分音符拍 → 高亮并 pluck 当前音，再推进（循环）
+  const advanceFollow = useCallback(() => {
+    if (demoActiveRef.current) return
+    const route = activeRouteRef.current
+    const i = seqIdxRef.current
+    const n = route[i]
+    if (n) playNote(n)
+    if (route.length) setSeqIdx((prev) => (prev + 1 >= route.length ? 0 : prev + 1))
+  }, [playNote])
+
   const playDemo = useCallback(() => {
-    const notes = [...positions].sort((a, b) => a.midi - b.midi)
-    if (notes.length === 0) return
+    if (demoTimer.current) window.clearTimeout(demoTimer.current)
+    const sorted = [...positions].sort((a, b) => a.midi - b.midi)
+    const route = mode === 'pattern' ? patternRun : [...sorted, ...sorted.slice().reverse()]
+    if (route.length === 0) return
     void audioEngine.unlock()
-    const up = notes
-    const down = [...notes].reverse()
-    const sequence = [...up, ...down]
+    setDemoActive(true)
+    setDemoIdx(0)
     let i = 0
     const step = () => {
-      if (i >= sequence.length) return
-      playNote(sequence[i])
+      if (i >= route.length) {
+        setDemoActive(false)
+        setDemoIdx(-1)
+        return
+      }
+      playNote(route[i])
+      setDemoIdx(i)
       i++
-      demoTimer.current = window.setTimeout(step, 260)
+      demoTimer.current = window.setTimeout(step, 320)
     }
-    if (demoTimer.current) window.clearTimeout(demoTimer.current)
     step()
-  }, [positions, playNote])
+  }, [positions, patternRun, mode, playNote])
 
   useEffect(() => {
     return () => {
@@ -129,6 +180,15 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
   }, [])
 
   const highlights = useMemo<Highlight[]>(() => {
+    // 演示：边播边高亮（最高优先级，覆盖练习高亮）
+    if (demoActive) {
+      return demoRoute.map((p, i) => ({
+        string: p.string,
+        fret: p.fret,
+        kind: i < demoIdx ? 'done' : i === demoIdx ? 'answer' : 'ghost',
+        label: degreeName(def.formula[p.degree]),
+      }))
+    }
     if (mode === 'map') {
       return positions.map((p) => ({
         string: p.string,
@@ -137,24 +197,30 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
         label: degreeName(def.formula[p.degree]),
       }))
     }
-    if (mode === 'sequence') {
-      return run.map((p, i) => ({
+    if (mode === 'follow' || mode === 'pattern') {
+      const route = mode === 'follow' ? run : patternRun
+      return route.map((p, i) => ({
         string: p.string,
         fret: p.fret,
-        kind: i < seqIdx ? 'secondary' : i === seqIdx ? 'answer' : 'ghost',
+        kind: i < seqIdx ? 'done' : i === seqIdx ? 'answer' : 'ghost',
         label: degreeName(def.formula[p.degree]),
       }))
     }
-    // ear
+    // ear：答题前只显示把位音阶轮廓（ghost）作地图，绝不标答案；
+    // 点击猜测后才揭示答案 + 判定（hit / miss）
+    if (earVerdict === 'none') {
+      return positions.map((p) => ({
+        string: p.string,
+        fret: p.fret,
+        kind: 'ghost' as const,
+        label: degreeName(def.formula[p.degree]),
+      }))
+    }
     const out: Highlight[] = []
-    if (earTarget) {
-      out.push({ string: earTarget.string, fret: earTarget.fret, kind: 'answer' })
-    }
-    if (earVerdict === 'miss' && earGuessed) {
-      out.push({ string: earGuessed.string, fret: earGuessed.fret, kind: 'miss' })
-    }
+    if (earGuessed) out.push({ string: earGuessed.string, fret: earGuessed.fret, kind: 'miss' })
+    if (earTarget) out.push({ string: earTarget.string, fret: earTarget.fret, kind: 'answer' })
     return out
-  }, [mode, positions, run, seqIdx, def, earTarget, earGuessed, earVerdict])
+  }, [mode, positions, run, patternRun, seqIdx, demoActive, demoIdx, demoRoute, def, earTarget, earGuessed, earVerdict])
 
   const handleFretClick = useCallback(
     (stringNumber: number, fret: number) => {
@@ -166,14 +232,9 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
         return
       }
 
-      if (mode === 'sequence') {
-        const target = run[seqIdx]
-        if (clicked && target && clicked.string === target.string && clicked.fret === target.fret) {
-          playNote(target)
-          setSeqIdx((i) => Math.min(i + 1, run.length))
-        } else if (clicked) {
-          playNote(clicked)
-        }
+      // follow / pattern（跟拍、模进）：由底部节拍器自动推进，手动点只做试听
+      if (mode === 'follow' || mode === 'pattern') {
+        if (clicked) playNote(clicked)
         return
       }
 
@@ -199,7 +260,8 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
   )
 
   const noteNames = def.formula.map((iv) => letterOf(((rootPc + iv) % 12 + 12) % 12))
-  const scaleComplete = mode === 'sequence' && seqIdx >= run.length
+  const scaleComplete = mode === 'follow' && seqIdx >= run.length
+  const patternComplete = mode === 'pattern' && seqIdx >= patternRun.length
   const chordRootName = ROOT_LABELS[rootPc]
 
   // ── 老师口吻的左侧乐理提示（随音阶 / 把位变化）──
@@ -290,6 +352,20 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
     return rows
   }, [positions])
 
+  // 跟拍 / 模进 / 演示：把「已弹奏 / 当前 / 未弹」的键集合算出来，给形状卡上色
+  const inFollowMode = mode === 'follow' || mode === 'pattern' || demoActive
+  const cardRoute = inFollowMode ? (demoActive ? demoRoute : mode === 'pattern' ? patternRun : run) : []
+  const cardCursor = demoActive ? demoIdx : seqIdx
+  const playedKeys = useMemo(() => {
+    const set = new Set<string>()
+    cardRoute.slice(0, cardCursor).forEach((n) => set.add(`${n.string}-${n.fret}`))
+    return set
+  }, [cardRoute, cardCursor])
+  const currentKey = useMemo(() => {
+    const n = cardRoute[cardCursor]
+    return n ? `${n.string}-${n.fret}` : null
+  }, [cardRoute, cardCursor])
+
   const boxLabel = useMemo(() => {
     if (showAll || boxes.length === 0) return '全指板'
     const b = boxes[boxIndex]
@@ -304,10 +380,10 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
       <div className="module-scroll">
         <div className="chord-panel scale-panel">
           {/* 控制区 */}
-        <div className="chord-controls">
+        <div className="scale-controls">
           <div className="field">
             <label className="field__label">根音</label>
-            <div className="segmented segmented--wrap" role="group" aria-label="根音">
+            <div className="segmented" role="group" aria-label="根音">
               {ROOT_LABELS.map((n, i) => (
                 <button
                   key={n}
@@ -323,7 +399,7 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
 
           <div className="field field--scale">
             <label className="field__label">音阶</label>
-            <div className="segmented" role="group" aria-label="音阶类型">
+            <div className="segmented segmented--scale" role="group" aria-label="音阶类型">
               {SCALES.map((s) => (
                 <button
                   key={s.id}
@@ -337,7 +413,7 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
             </div>
           </div>
 
-          <div className="field">
+          <div className="field field--practice">
             <label className="field__label">练习方式</label>
             <div className="segmented" role="group" aria-label="练习方式">
               <button
@@ -349,10 +425,17 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
               </button>
               <button
                 className="segmented__item"
-                aria-pressed={mode === 'sequence'}
-                onClick={() => setMode('sequence')}
+                aria-pressed={mode === 'follow'}
+                onClick={() => setMode('follow')}
               >
-                跟弹
+                跟拍
+              </button>
+              <button
+                className="segmented__item"
+                aria-pressed={mode === 'pattern'}
+                onClick={() => setMode('pattern')}
+              >
+                模进
               </button>
               <button
                 className="segmented__item"
@@ -404,6 +487,38 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
           </button>
         </div>
 
+        {/* 模进子选择器（仅在「模进」模式下出现） */}
+        {mode === 'pattern' && (
+          <div className="scale-pattern-bar">
+            <div className="segmented segmented--scale" role="group" aria-label="模进类型">
+              {PATTERNS.map((p) => (
+                <button
+                  key={p.id}
+                  className="segmented__item"
+                  aria-pressed={patternId === p.id}
+                  onClick={() => setPatternId(p.id)}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <div className="scale-progress">
+              进度 {Math.min(seqIdx, patternRun.length)} / {patternRun.length}
+              {patternComplete && <span className="scale-progress__done"> ✓ 完成一轮！</span>}
+              <button
+                className="btn btn--sm btn--ghost"
+                onClick={() => setSeqIdx(0)}
+                style={{ marginLeft: '0.6rem' }}
+              >
+                重来
+              </button>
+            </div>
+            <p className="scale-pattern-tip">
+              {PATTERNS.find((p) => p.id === patternId)?.tip}
+            </p>
+          </div>
+        )}
+
         {/* 主视图 */}
         <div className="scale-layout">
           <section className="chord-figure scale-figure" aria-label="音阶指板">
@@ -415,10 +530,13 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
               <span className="chord-head__formula">{def.formula.join('·')}</span>
             </div>
 
-            {mode === 'sequence' && (
+            {mode === 'follow' ? (
               <div className="scale-progress">
                 进度 {Math.min(seqIdx, run.length)} / {run.length}
-                {scaleComplete && <span className="scale-progress__done"> ✓ 完成一轮！</span>}
+                {scaleComplete && (
+                  <span className="scale-progress__done"> ✓ 完成一轮！</span>
+                )}
+                <span className="scale-progress__follow">♪ 播放底部节拍器，每拍自动亮一个音</span>
                 <button
                   className="btn btn--sm btn--ghost"
                   onClick={() => setSeqIdx(0)}
@@ -427,7 +545,7 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
                   重来
                 </button>
               </div>
-            )}
+            ) : null}
 
             {mode === 'ear' && (
               <div className="scale-progress">
@@ -479,17 +597,24 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
                       {notes.length === 0 ? (
                         <span className="scale-shape__empty">—</span>
                       ) : (
-                        notes.map((n) => (
-                          <span
-                            key={`${n.string}-${n.fret}`}
-                            className={`scale-shape__note${n.degree === 0 ? ' is-root' : ''}`}
-                          >
-                            {n.fret}品
-                            <small className="scale-shape__degree">
-                              {degreeName(def.formula[n.degree])}
-                            </small>
-                          </span>
-                        ))
+                        notes.map((n) => {
+                          const k = `${n.string}-${n.fret}`
+                          const noteCls = [
+                            'scale-shape__note',
+                            n.degree === 0 ? 'is-root' : '',
+                            inFollowMode && k === currentKey ? 'is-current' : '',
+                            inFollowMode && k !== currentKey && playedKeys.has(k) ? 'is-played' : '',
+                            inFollowMode && k !== currentKey && !playedKeys.has(k) ? 'is-upcoming' : '',
+                          ].join(' ').trim()
+                          return (
+                            <span key={k} className={noteCls}>
+                              {n.fret}品
+                              <small className="scale-shape__degree">
+                                {degreeName(def.formula[n.degree])}
+                              </small>
+                            </span>
+                          )
+                        })
                       )}
                     </div>
                   </div>
@@ -519,7 +644,7 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
               <p className="chord-theory__p">
                 五声被拆成 {isPenta ? '5 个 CAGED 形状（E‑D‑C‑A‑G，彼此咬合覆盖全琴颈）' : '7 个位置'}，
                 你正在看的是其中一个。1）先看形状卡，记住每根弦上
-                <strong>根音（R，橙色）</strong>的位置；2）用「跟弹」模式从低音到高音走一遍；
+                <strong>根音（R，橙色）</strong>的位置；2）用「跟拍」模式跟着底部节拍器从低音到高音走一遍；
                 3）闭上眼睛，凭肌肉记忆按出来。用顶部「上一个位置 / 下一个位置」顺着琴颈往上爬，
                 把 {isPenta ? '5 个形状' : '7 个位置'} 都啃熟，整条指板就通了。
               </p>
@@ -563,15 +688,17 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
               </div>
             </aside>
 
+            <ScaleConnection rootPc={rootPc} scaleId={scaleId} />
+
             <button className="btn btn--primary scale-demo" onClick={playDemo} type="button">
-              ▶ 演示这个把位（上行 + 下行）
+              ▶ 演示这个把位（边播边高亮每个音）
             </button>
           </section>
         </div>
       </div>
       </div>
 
-      <RhythmBar />
+      <RhythmBar onBeat={advanceFollow} />
     </main>
   )
 }

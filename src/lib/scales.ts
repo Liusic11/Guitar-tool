@@ -248,3 +248,106 @@ export function scaleBoxes(
   boxes.sort((a, b) => a.lo - b.lo)
   return boxes
 }
+
+/* ════════════════ 模进（Patterns / Sequences）═══════════════
+ * 把当前把位里的音阶音排成一条「造句」路线——这是把音阶词汇
+ * 变成能脱口而出的乐句的关键，也是面向 jam / 创作的内化层练习。
+ */
+
+export type PatternId = 'seq3' | 'octave' | 'arp' | 'blues'
+
+export interface PatternDef {
+  id: PatternId
+  label: string
+  /** 老师口吻：这个模进练什么、为什么有用 */
+  tip: string
+}
+
+export const PATTERNS: PatternDef[] = [
+  {
+    id: 'seq3',
+    label: '3 音一组',
+    tip: '把音阶切成 3 个音一组、逐组往上叠（1-2-3 / 2-3-4 / 3-4-5…）。这是吉他手最基础的「模进」，练的是手指在把位里连续流动，而不是死背形状。',
+  },
+  {
+    id: 'octave',
+    label: '八度跳',
+    tip: '每个音后面接它高八度的同一个音（在原把位里通常是换一根弦）。练八度跳能让你「看见」把位里音的镜像关系，solo 一下子就宽了。',
+  },
+  {
+    id: 'arp',
+    label: '琶音',
+    tip: '只弹和弦音（根音·3 音·5 音·7 音），上行再下行。琶音是「为什么这个音阶能配这个和弦」的答案——你把和弦拆开弹，耳朵就懂了调。',
+  },
+  {
+    id: 'blues',
+    label: 'Blues 乐句',
+    tip: '一条锚定在根音把位（E 形）的小蓝调乐句骨架：根音→♭3→根音→4→♭7→5→… 先把这条「说话的句式」弹顺，即兴时就知道往哪走了。',
+  },
+]
+
+/** 去重：同一音高只留一个位置（取较低把位），按音高升序 */
+function uniqueAscending(positions: ScaleNote[]): ScaleNote[] {
+  const byMidi = new Map<number, ScaleNote>()
+  for (const n of positions) {
+    const existing = byMidi.get(n.midi)
+    if (!existing || n.fret < existing.fret) byMidi.set(n.midi, n)
+  }
+  return [...byMidi.values()].sort((a, b) => a.midi - b.midi)
+}
+
+const CHORD_TONE_SEMIS = [0, 3, 4, 5, 7, 10, 11]
+
+/**
+ * 把当前把位里的音阶音排成一条「模进」路线。
+ * 任何把位都能生成；规模太小则回退到直线升序，保证永远有得练。
+ */
+export function scalePattern(
+  positions: ScaleNote[],
+  formula: number[],
+  patternId: PatternId,
+): ScaleNote[] {
+  const a = uniqueAscending(positions)
+  if (a.length < 3) return a
+
+  if (patternId === 'seq3') {
+    const seq: ScaleNote[] = []
+    for (let i = 0; i + 2 < a.length; i++) {
+      seq.push(a[i], a[i + 1], a[i + 2])
+    }
+    return seq.length >= 3 ? seq : a
+  }
+
+  if (patternId === 'octave') {
+    const seq: ScaleNote[] = []
+    for (const n of a) {
+      seq.push(n)
+      const partner = positions.find((m) => m.degree === n.degree && m.midi === n.midi + 12)
+      if (partner) seq.push(partner)
+    }
+    return seq
+  }
+
+  if (patternId === 'arp') {
+    const arp = uniqueAscending(positions.filter((n) => CHORD_TONE_SEMIS.includes(formula[n.degree])))
+    if (arp.length < 3) return a
+    return [...arp, ...arp.slice().reverse().slice(1)]
+  }
+
+  // blues 乐句：仅在小调五声 / 布鲁斯上做完整腔调，否则回退 3 音一组
+  const hasBluesSkeleton = [0, 3, 5, 7, 10].every((s) => formula.includes(s))
+  if (patternId === 'blues') {
+    if (!hasBluesSkeleton) return scalePattern(positions, formula, 'seq3')
+    const order = [0, 3, 0, 5, 10, 7, 5, 3, 0]
+    const lick: ScaleNote[] = []
+    for (const s of order) {
+      const cand = positions
+        .filter((n) => formula[n.degree] === s)
+        .sort((x, y) => x.midi - y.midi)
+      if (cand.length) lick.push(cand[0])
+    }
+    return lick.length >= 4 ? lick : a
+  }
+
+  return a
+}

@@ -23,6 +23,8 @@ import {
 import type { MasteryMap } from '../lib/srs'
 import type { LabelMode } from './Fretboard'
 import type { ToneProfileId } from '../lib/audio'
+import { RHYTHM_PRESETS } from '../lib/rhythm'
+import { useRhythmState, rhythmStore } from '../lib/rhythmStore'
 import type { Settings, Stats } from '../hooks/useQuizEngine'
 
 interface SettingsDrawerProps {
@@ -125,6 +127,7 @@ export const SettingsDrawer = memo(function SettingsDrawer({
   onResetMastery,
 }: SettingsDrawerProps) {
   const panelRef = useRef<HTMLDivElement>(null)
+  const rhythm = useRhythmState()
 
   // Esc 关闭 + 打开时把焦点移进抽屉
   useEffect(() => {
@@ -402,6 +405,50 @@ export const SettingsDrawer = memo(function SettingsDrawer({
             </div>
             <p className="field__hint">
               原声像木箱、偏闷；电吉他清音更亮更干；过载带一点 rock / funk 的咬音。
+            </p>
+          </div>
+
+          {/* ══════════ 节奏 ══════════ */}
+          <p className="section-label">节奏</p>
+
+          <div className="field">
+            <div className="field__head">
+              <label className="field__label" htmlFor="rbpm">
+                速度
+              </label>
+              <span className="field__value">{rhythm.bpm} BPM</span>
+            </div>
+            <input
+              id="rbpm"
+              type="range"
+              min={40}
+              max={200}
+              step={1}
+              value={rhythm.bpm}
+              onChange={(e) => rhythmStore.setBpm(Number(e.target.value))}
+            />
+            <p className="field__hint">
+              练习节拍。先慢（60）后快（90+），节奏稳了音阶才真正属于你。
+            </p>
+          </div>
+
+          <div className="field">
+            <label className="field__label">节拍型</label>
+            <div className="segmented segmented--scale" role="group" aria-label="节拍型">
+              {RHYTHM_PRESETS.map((p) => (
+                <button
+                  key={p.id}
+                  className="segmented__item"
+                  aria-pressed={rhythm.presetId === p.id}
+                  onClick={() => rhythmStore.setPreset(p.id)}
+                  type="button"
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <p className="field__hint">
+              {RHYTHM_PRESETS.find((p) => p.id === rhythm.presetId)?.tip}
             </p>
           </div>
 

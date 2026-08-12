@@ -1,74 +1,135 @@
 /**
  * 节奏 / 律动预设
  * ─────────────────────────────────────────────
- * 以一小节 16 分网格（4 拍 × 4 个十六分）描述律动。
- * 每个格子是四种之一：
- *   accent 重拍（节拍器强音，落在 1/2/3/4 拍）
- *   tick  细分弱音（帮你数清每一拍里的小格子）
- *   chuck 闷音（funk 标志性的「嚓」，落在反拍）
- *   rest  休止
+ * 以「一小节」为单位描述节拍。每个预设是一个网格：
+ *   - kit：发声方式 —— 'click' 传统节拍器 / 'drums' 架子鼓
+ *   - subdiv：每一拍（四分音符）里分几步（1=四分、2=八分、3=三连音、4=十六分）
+ *   - steps：一小节的步序列；每步可为 重拍(accent) / 弱音(tick) / 底鼓(kick) / 军鼓(snare) / 踩镲(hat)
+ *   - 所有预设都是 4 拍一小节（4/4），onBeat 每拍（每 subdiv 步）回调一次
+ *
+ * 这样音阶「跟拍」、「模进」就能跟着真实律动走，而不是冷冰冰的节拍器。
  */
 
-export type StepKind = 'accent' | 'tick' | 'chuck' | 'rest'
+export type RhythmKit = 'click' | 'drums'
 
-export interface Groove {
+export interface RhythmStep {
+  accent?: boolean
+  tick?: boolean
+  kick?: boolean
+  snare?: boolean
+  hat?: boolean
+}
+
+export interface RhythmPreset {
   id: string
+  /** 控件上显示的名字，如「4/4 动次打次」 */
   label: string
-  style: string
-  /** 是否启用摇摆（jazz 的 8 分三连化） */
-  swing: boolean
-  pattern: StepKind[]
+  /** 拍号显示，如 '4/4' / '3连音' */
+  beat: string
+  kit: RhythmKit
+  /** 每一拍分成几步（决定步长与 onBeat 频率） */
+  subdiv: number
+  /** 一小节的步序列 */
+  steps: RhythmStep[]
   /** 一句话要点 */
   tip: string
 }
 
-const STEPS = 16
+const qa = (): RhythmStep => ({ accent: true })
+const qt = (): RhythmStep => ({ tick: true })
 
-const make = (
-  id: string,
-  label: string,
-  style: string,
-  tip: string,
-  build: () => StepKind[],
-  swing = false,
-): Groove => ({ id, label, style, swing, tip, pattern: build() })
-
-/** 反拍（8 分音符的「and」）所在格子 */
-const OFF_EIGHTHS = [2, 6, 10, 14]
-
-export const GROOVES: Groove[] = [
-  make('straight', '直拍 8 分', 'rock', '一拍两下，最稳的地基，先把这玩明白', () => {
-    const p: StepKind[] = new Array(STEPS).fill('rest')
-    for (let i = 0; i < STEPS; i += 2) p[i] = i % 4 === 0 ? 'accent' : 'tick'
-    return p
-  }),
-
-  make('funk', 'Funk 16 分', 'funk', '重拍稳住，反拍上「嚓」——funk 的魂在反拍', () => {
-    const p: StepKind[] = new Array(STEPS).fill('tick')
-    for (let i = 0; i < STEPS; i += 4) p[i] = 'accent'
-    OFF_EIGHTHS.forEach((i) => (p[i] = 'chuck'))
-    return p
-  }),
-
-  make(
-    'swing',
-    'Jazz 摇摆',
-    'jazz',
-    '8 分音符「长短长短」，把反拍往后拖一点就是 swing',
-    () => {
-      const p: StepKind[] = new Array(STEPS).fill('rest')
-      for (let i = 0; i < STEPS; i += 4) p[i] = 'accent'
-      OFF_EIGHTHS.forEach((i) => (p[i] = 'tick'))
-      return p
-    },
-    true,
-  ),
+/* ── 4/4 动次打次：底鼓 1·3、军鼓 2·4、踩镲走八分 ── */
+const boomTss = (): RhythmStep[] => [
+  { kick: true, hat: true },
+  { hat: true },
+  { snare: true, hat: true },
+  { hat: true },
+  { kick: true, hat: true },
+  { hat: true },
+  { snare: true, hat: true },
+  { hat: true },
 ]
 
-/** 把步号映射到节拍 / 细分位置，用于网格标注 */
-export function stepLabel(step: number): { beat: number; sub: string } {
-  const beat = Math.floor(step / 4) + 1
-  const subIdx = step % 4
-  const sub = ['1', 'e', '&', 'a'][subIdx]
-  return { beat, sub }
+/* ── 三连音鼓：踩镲三连、底鼓在 1&3、军鼓在 2&4 ── */
+const tripletDrums = (): RhythmStep[] => {
+  const s: RhythmStep[] = new Array(12).fill(null).map(() => ({ hat: true }))
+  s[0] = { kick: true, hat: true }
+  s[3] = { snare: true, hat: true }
+  s[6] = { kick: true, hat: true }
+  s[9] = { snare: true, hat: true }
+  return s
+}
+
+/* ── Funk 16 分：踩镲十六分 + 切分底鼓 + 反拍军鼓 ── */
+const funk16 = (): RhythmStep[] => {
+  const s: RhythmStep[] = new Array(16).fill(null).map(() => ({ hat: true }))
+  s[0] = { kick: true, hat: true }
+  s[3] = { kick: true, hat: true }
+  s[4] = { snare: true, hat: true }
+  s[8] = { kick: true, hat: true }
+  s[10] = { kick: true, hat: true }
+  s[12] = { snare: true, hat: true }
+  s[14] = { kick: true, hat: true }
+  return s
+}
+
+export const RHYTHM_PRESETS: RhythmPreset[] = [
+  {
+    id: 'click-44',
+    label: '4/4 节拍器',
+    beat: '4/4',
+    kit: 'click',
+    subdiv: 1,
+    steps: [qa(), qt(), qt(), qt()],
+    tip: '四个四分音符，最稳的地基。先把这练到不用想，再上细分。',
+  },
+  {
+    id: 'click-8',
+    label: '8分 节拍器',
+    beat: '4/4',
+    kit: 'click',
+    subdiv: 2,
+    steps: [qa(), qt(), qa(), qt(), qa(), qt(), qa(), qt()],
+    tip: '一拍两下，跟扫弦 / 跟音阶最常用的细分。重拍落在 1·2·3·4。',
+  },
+  {
+    id: 'drums-44',
+    label: '4/4 动次打次',
+    beat: '4/4',
+    kit: 'drums',
+    subdiv: 2,
+    steps: boomTss(),
+    tip: '底鼓在 1·3、军鼓在 2·4、踩镲走八分——这就是绝大多数歌的骨架。',
+  },
+  {
+    id: 'click-triplet',
+    label: '三连音 节拍器',
+    beat: '3连音',
+    kit: 'click',
+    subdiv: 3,
+    steps: [qa(), qt(), qt(), qa(), qt(), qt(), qa(), qt(), qt(), qa(), qt(), qt()],
+    tip: '把一拍三等分，swing / shuffle 的呼吸感从这里来。跟着数「1-2-3」。',
+  },
+  {
+    id: 'drums-triplet',
+    label: '三连音 架子鼓',
+    beat: '3连音',
+    kit: 'drums',
+    subdiv: 3,
+    steps: tripletDrums(),
+    tip: '三连音感觉的鼓点，专练 shuffle / 蓝调律动。',
+  },
+  {
+    id: 'drums-funk',
+    label: 'Funk 16分',
+    beat: '4/4',
+    kit: 'drums',
+    subdiv: 4,
+    steps: funk16(),
+    tip: '十六分踩镲 + 切分底鼓，funk 的「反拍律动」——重心落在「and」上。',
+  },
+]
+
+export function getPreset(id: string): RhythmPreset {
+  return RHYTHM_PRESETS.find((p) => p.id === id) ?? RHYTHM_PRESETS[0]
 }

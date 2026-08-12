@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Fretboard, type Highlight } from './components/Fretboard'
 import { PromptStage } from './components/PromptStage'
 import { ChordLibrary } from './components/ChordLibrary'
@@ -7,6 +7,7 @@ import { SettingsDrawer } from './components/SettingsDrawer'
 import { useQuizEngine } from './hooks/useQuizEngine'
 import { MAX_FRET } from './lib/music'
 import { audioEngine } from './lib/audio'
+import { sessionStore } from './lib/session'
 
 export default function App() {
   const engine = useQuizEngine()
@@ -52,6 +53,13 @@ export default function App() {
     },
     [running, stop],
   )
+
+  // 贯通层：响应来自和弦页 / 音阶页的「跳过去」请求（目标根音 / 音阶 / 和弦已写好）
+  const navState = useSyncExternalStore(sessionStore.subscribe, sessionStore.get)
+  useEffect(() => {
+    const target = sessionStore.consumeNav()
+    if (target) switchView(target)
+  }, [navState, switchView])
 
   /* ─────────────── 指板高亮 ─────────────── */
 

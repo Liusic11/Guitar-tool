@@ -458,12 +458,15 @@ export class GuitarAudioEngine {
   }
 
   /**
-   * 扫弦 —— 用于和弦试听。
+   * 扫弦 —— 用于和弦试听 / 切换训练自动换把。
    * @param notes 从 6 弦到 1 弦的 MIDI 数组，null 表示该弦闷音不发声
    * @param spread 相邻两根弦之间的时间差（秒），负值为上扫
+   * @param when 期望开始扫弦的音频时钟时间（默认立即）；用于把和弦精准对齐到节拍
    */
-  strum(notes: (number | null)[], spread = 0.028): void {
+  strum(notes: (number | null)[], spread = 0.012, when?: number): void {
     void this.unlock()
+    if (!this.ctx || !this.bodyChainInput) return
+    const baseDelay = when !== undefined ? Math.max(0, when - this.ctx.currentTime) : 0
     const upward = spread < 0
     const step = Math.abs(spread)
     const order = upward ? [...notes].reverse() : notes
@@ -474,7 +477,7 @@ export class GuitarAudioEngine {
       this.pluck(midi, {
         velocity: 0.62 + Math.random() * 0.16,
         stringNumber,
-        delay: index * step,
+        delay: baseDelay + index * step,
       })
     })
   }
@@ -499,6 +502,92 @@ export class GuitarAudioEngine {
     gain.connect(this.master)
     osc.start(now)
     osc.stop(now + 0.22)
+  }
+
+  /** 生成一段短白噪声 buffer，给军鼓 / 踩镲用 */
+  private noiseBuffer(duration: number): AudioBuffer {
+    const ctx = this.ctx!
+    const rate = ctx.sampleRate
+    const length = Math.max(1, Math.floor(rate * duration))
+    const buffer = ctx.createBuffer(1, length, rate)
+    const data = buffer.getChannelData(0)
+    for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1
+    return buffer
+  }
+
+  /** 底鼓（kick）：低频正弦快速下滑，短促有冲击 */
+  kick(at?: number): void {
+    void this.unlock()
+    if (!this.ctx || !this.master || this._muted) return
+    const ctx = this.ctx
+    const t = at ?? ctx.currentTime
+    const osc = ctx.createOscillator()
+    osc.type = 'sine'
+    osc.frequency.setValueAtTime(155, t)
+    osc.frequency.exponentialRampToValueAtTime(48, t + 0.12)
+    const gain = ctx.createGain()
+    gain.gain.setValueAtTime(0.0001, t)
+    gain.gain.exponentialRampToValueAtTime(0.55, t + 0.005)
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.22)
+    osc.connect(gain)
+    gain.connect(this.master)
+    osc.start(t)
+    osc.stop(t + 0.24)
+  }
+
+  /** 军鼓（snare）：高通白噪声 + 一点三角波音体 */
+  snare(at?: number): void {
+    void this.unlock()
+    if (!this.ctx || !this.master || this._muted) return
+    const ctx = this.ctx
+    const t = at ?? ctx.currentTime
+    const src = ctx.createBufferSource()
+    src.buffer = this.noiseBuffer(0.2)
+    const hp = ctx.createBiquadFilter()
+    hp.type = 'highpass'
+    hp.frequency.value = 1400
+    const ng = ctx.createGain()
+    ng.gain.setValueAtTime(0.0001, t)
+    ng.gain.exponentialRampToValueAtTime(0.32, t + 0.004)
+    ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.18)
+    src.connect(hp)
+    hp.connect(ng)
+    ng.connect(this.master)
+    src.start(t)
+    src.stop(t + 0.2)
+    const body = ctx.createOscillator()
+    body.type = 'triangle'
+    body.frequency.setValueAtTime(190, t)
+    const bg = ctx.createGain()
+    bg.gain.setValueAtTime(0.0001, t)
+    bg.gain.exponentialRampToValueAtTime(0.12, t + 0.004)
+    bg.gain.exponentialRampToValueAtTime(0.0001, t + 0.12)
+    body.connect(bg)
+    bg.connect(this.master)
+    body.start(t)
+    body.stop(t + 0.13)
+  }
+
+  /** 踩镲（hat）：极高通白噪声，极短 */
+  hat(at?: number): void {
+    void this.unlock()
+    if (!this.ctx || !this.master || this._muted) return
+    const ctx = this.ctx
+    const t = at ?? ctx.currentTime
+    const src = ctx.createBufferSource()
+    src.buffer = this.noiseBuffer(0.06)
+    const hp = ctx.createBiquadFilter()
+    hp.type = 'highpass'
+    hp.frequency.value = 7000
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.exponentialRampToValueAtTime(0.14, t + 0.002)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.04)
+    src.connect(hp)
+    hp.connect(g)
+    g.connect(this.master)
+    src.start(t)
+    src.stop(t + 0.06)
   }
 
   silence(): void {

@@ -11,12 +11,15 @@
  * · 保留「指板全景」开关（旧整颈高亮）作为进阶视角。
  */
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Fretboard, type Highlight, type LabelMode } from './Fretboard'
 import { ChordDiagram } from './ChordDiagram'
 import { ChordTheory } from './ChordTheory'
+import { ChordConnection } from './ChordConnection'
+import { ChordChanges } from './ChordChanges'
 import { RhythmBar } from './RhythmBar'
 import { audioEngine } from '../lib/audio'
+import { sessionStore } from '../lib/session'
 import {
   CHORD_TYPES,
   voiceChord,
@@ -44,11 +47,18 @@ interface ChordLibraryProps {
 }
 
 export function ChordLibrary({ tuning, settings }: ChordLibraryProps) {
-  const [typeId, setTypeId] = useState<string>('dom7')
-  const [rootPc, setRootPc] = useState<PitchClass>(9) // 默认 A，摇滚 / blues 常用
+  // 贯通层：和弦类型与根音都从共享 store 初始化，跨模块跳转后能接上
+  const [typeId, setTypeId] = useState<string>(() => sessionStore.get().chordTypeId ?? 'dom7')
+  const [rootPc, setRootPc] = useState<PitchClass>(() => (sessionStore.get().rootPc as PitchClass) ?? 9)
   const [labelMode, setLabelMode] = useState<LabelMode>(settings.labelMode)
   const [position, setPosition] = useState<ChordPosition>('auto')
   const [showNeck, setShowNeck] = useState(false)
+  const [mode, setMode] = useState<'reference' | 'changes'>('reference')
+
+  // 根音变化即同步到共享 store，让音阶页 / 和弦页感知到同一把钥匙
+  useEffect(() => {
+    sessionStore.setRoot(rootPc)
+  }, [rootPc])
 
   const type: ChordType = CHORD_TYPES.find((t) => t.id === typeId) ?? CHORD_TYPES[0]
 
@@ -102,14 +112,36 @@ export function ChordLibrary({ tuning, settings }: ChordLibraryProps) {
     const notesOut: (number | null)[] = voicing.notes.map((n) =>
       n.muted ? null : midiAt(tuning, n.string, n.fret),
     )
-    audioEngine.strum(notesOut, 0.03)
+    audioEngine.strum(notesOut, 0.012)
   }
 
-  return (
+  return mode === 'changes' ? (
+    <ChordChanges tuning={tuning} onReference={() => setMode('reference')} />
+  ) : (
     <main className="module-stage chord-stage">
       <div className="module-scroll">
         <div className="chord-panel">
-          <p className="section-label">和弦参考 · 指法浏览器</p>
+          <div className="chord-mode-bar">
+            <p className="section-label">和弦参考 · 指法浏览器</p>
+            <div className="segmented" role="group" aria-label="练习方式">
+              <button
+                className="segmented__item"
+                aria-pressed
+                onClick={() => setMode('reference')}
+                type="button"
+              >
+                参考浏览器
+              </button>
+              <button
+                className="segmented__item"
+                aria-pressed={false}
+                onClick={() => setMode('changes')}
+                type="button"
+              >
+                切换训练
+              </button>
+            </div>
+          </div>
 
         <div className="chord-controls">
           <div className="field">
@@ -211,7 +243,10 @@ export function ChordLibrary({ tuning, settings }: ChordLibraryProps) {
             </div>
           </div>
 
-          <ChordTheory type={type} />
+          <div className="chord-aside">
+            <ChordTheory type={type} />
+            <ChordConnection rootPc={rootPc} typeId={typeId} />
+          </div>
         </div>
 
         {showNeck && (

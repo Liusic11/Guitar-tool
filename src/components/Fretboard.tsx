@@ -41,7 +41,7 @@ const SPAN_RATIO = 0.815 // 弦跨度占指板宽度的比例
 /** 弦的绘制粗细（SVG 单位），6 弦 → 1 弦 */
 const STRING_WIDTHS = [5.0, 4.1, 3.3, 2.6, 1.9, 1.5]
 
-export type HighlightKind = 'answer' | 'secondary' | 'hit' | 'miss' | 'ghost' | 'reference'
+export type HighlightKind = 'answer' | 'secondary' | 'done' | 'hit' | 'miss' | 'ghost' | 'reference'
 
 export interface Highlight {
   string: number
@@ -143,6 +143,13 @@ const HIGHLIGHT_STYLE: Record<
     fill: 'oklch(62% 0.09 42 / 0.82)',
     stroke: 'oklch(46% 0.1 38)',
     text: 'oklch(97% 0.01 60)',
+    radius: 11,
+  },
+  /** 已弹奏（跟弹 / 模进的「轨迹」）—— 用鼠尾草绿，读作「已完成」 */
+  done: {
+    fill: 'url(#dotSage)',
+    stroke: 'oklch(40% 0.09 152)',
+    text: 'oklch(98% 0.01 150)',
     radius: 11,
   },
   hit: {
