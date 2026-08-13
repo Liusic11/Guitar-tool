@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import { Fretboard, type Highlight } from './components/Fretboard'
 import { PromptStage } from './components/PromptStage'
 import { ChordLibrary } from './components/ChordLibrary'
-import { RhythmTrainer } from './components/RhythmTrainer'
+import { EarTrainer } from './components/EarTrainer'
 import { ScaleTrainer } from './components/ScaleTrainer'
 import { SettingsDrawer } from './components/SettingsDrawer'
 import { useQuizEngine } from './hooks/useQuizEngine'
@@ -43,12 +43,12 @@ export default function App() {
   } = engine
 
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [view, setView] = useState<'train' | 'chords' | 'scales' | 'rhythm'>('train')
+  const [view, setView] = useState<'train' | 'chords' | 'scales' | 'ear'>('train')
   const task = settings.task
 
   // 离开指板训练时若还在跑就先停掉，避免两套声音打架
   const switchView = useCallback(
-    (next: 'train' | 'chords' | 'scales' | 'rhythm') => {
+    (next: 'train' | 'chords' | 'scales' | 'ear') => {
       if (next !== 'train' && running) stop()
       setView(next)
     },
@@ -269,10 +269,10 @@ export default function App() {
             </button>
             <button
               className="segmented__item"
-              aria-pressed={view === 'rhythm'}
-              onClick={() => switchView('rhythm')}
+              aria-pressed={view === 'ear'}
+              onClick={() => switchView('ear')}
             >
-              节奏
+              耳朵
             </button>
           </div>
 
@@ -394,7 +394,7 @@ export default function App() {
       ) : view === 'scales' ? (
         <ScaleTrainer tuning={tuning} />
       ) : (
-        <RhythmTrainer />
+        <EarTrainer tuning={tuning} />
       )}
 
       {/* ══════════ 指板 ══════════ */}

@@ -28,7 +28,7 @@ const ROOT_LABELS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#',
 /** 弦号 6→1，用于把位形状卡 */
 const STRING_ORDER = [6, 5, 4, 3, 2, 1]
 
-type Mode = 'map' | 'follow' | 'pattern' | 'ear'
+type Mode = 'map' | 'follow' | 'pattern'
 
 interface ScaleTrainerProps {
   tuning: Tuning
@@ -95,9 +95,6 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
   )
 
   const [seqIdx, setSeqIdx] = useState(0)
-  const [earTarget, setEarTarget] = useState<ScaleNote | null>(null)
-  const [earGuessed, setEarGuessed] = useState<ScaleNote | null>(null)
-  const [earVerdict, setEarVerdict] = useState<'none' | 'hit' | 'miss'>('none')
 
   // 跟拍 / 模进（bar 联动）：把「当前序号 / 路线」放进 ref，避免 onBeat 闭包拿到旧值
   const activeRouteRef = useRef<ScaleNote[]>([])
@@ -121,20 +118,10 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
   // 切换音阶 / 根音 / 模式 / 把位时复位练习状态
   useEffect(() => {
     setSeqIdx(0)
-    setEarTarget(null)
-    setEarGuessed(null)
-    setEarVerdict('none')
     setDemoActive(false)
     setDemoIdx(-1)
     if (demoTimer.current) window.clearTimeout(demoTimer.current)
   }, [rootPc, scaleId, mode, patternId, currentRange.join(',')])
-
-  // 进入「听音」模式时挑一个目标
-  useEffect(() => {
-    if (mode === 'ear' && !earTarget && positions.length > 0) {
-      setEarTarget(positions[Math.floor(Math.random() * positions.length)])
-    }
-  }, [mode, earTarget, positions])
 
   const playNote = useCallback((n: ScaleNote) => {
     audioEngine.pluck(n.midi, { stringNumber: n.string, velocity: 0.9 })
@@ -206,21 +193,13 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
         label: degreeName(def.formula[p.degree]),
       }))
     }
-    // ear：答题前只显示把位音阶轮廓（ghost）作地图，绝不标答案；
-    // 点击猜测后才揭示答案 + 判定（hit / miss）
-    if (earVerdict === 'none') {
-      return positions.map((p) => ({
-        string: p.string,
-        fret: p.fret,
-        kind: 'ghost' as const,
-        label: degreeName(def.formula[p.degree]),
-      }))
-    }
-    const out: Highlight[] = []
-    if (earGuessed) out.push({ string: earGuessed.string, fret: earGuessed.fret, kind: 'miss' })
-    if (earTarget) out.push({ string: earTarget.string, fret: earTarget.fret, kind: 'answer' })
-    return out
-  }, [mode, positions, run, patternRun, seqIdx, demoActive, demoIdx, demoRoute, def, earTarget, earGuessed, earVerdict])
+    return positions.map((p) => ({
+      string: p.string,
+      fret: p.fret,
+      kind: 'ghost' as const,
+      label: degreeName(def.formula[p.degree]),
+    }))
+  }, [mode, positions, run, patternRun, seqIdx, demoActive, demoIdx, demoRoute, def])
 
   const handleFretClick = useCallback(
     (stringNumber: number, fret: number) => {
@@ -238,25 +217,9 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
         return
       }
 
-      // ear
-      if (!earTarget) return
-      if (clicked && clicked.string === earTarget.string && clicked.fret === earTarget.fret) {
-        setEarGuessed(clicked)
-        setEarVerdict('hit')
-        playNote(clicked)
-        window.setTimeout(() => {
-          const next = positions[Math.floor(Math.random() * positions.length)]
-          setEarTarget(next)
-          setEarGuessed(null)
-          setEarVerdict('none')
-        }, 750)
-      } else if (clicked) {
-        setEarGuessed(clicked)
-        setEarVerdict('miss')
-        playNote(clicked)
-      }
+      if (clicked) playNote(clicked)
     },
-    [mode, positions, run, seqIdx, earTarget, playNote],
+    [mode, positions, run, seqIdx, playNote],
   )
 
   const noteNames = def.formula.map((iv) => letterOf(((rootPc + iv) % 12 + 12) % 12))
@@ -437,13 +400,6 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
               >
                 模进
               </button>
-              <button
-                className="segmented__item"
-                aria-pressed={mode === 'ear'}
-                onClick={() => setMode('ear')}
-              >
-                听音
-              </button>
             </div>
           </div>
         </div>
@@ -546,21 +502,6 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
                 </button>
               </div>
             ) : null}
-
-            {mode === 'ear' && (
-              <div className="scale-progress">
-                {earVerdict === 'hit' && <span className="scale-progress__done">✓ 找对了！</span>}
-                {earVerdict === 'miss' && <span className="scale-progress__miss">✗ 再听一次</span>}
-                {earVerdict === 'none' && <span>听这个音，在指板上点出来 →</span>}
-                <button
-                  className="btn btn--sm btn--ghost"
-                  onClick={() => earTarget && playNote(earTarget)}
-                  style={{ marginLeft: '0.6rem' }}
-                >
-                  ▶ 再听
-                </button>
-              </div>
-            )}
 
             <Fretboard
               tuning={tuning}

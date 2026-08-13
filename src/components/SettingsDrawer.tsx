@@ -182,8 +182,8 @@ export const SettingsDrawer = memo(function SettingsDrawer({
         </div>
 
         <div className="drawer__body">
-          {/* ══════════ 节奏 ══════════ */}
-          <p className="section-label">节奏</p>
+          {/* ══════════ 指板训练 ══════════ */}
+          <p className="section-label">指板训练</p>
 
           <div className="field">
             <div className="field__head">

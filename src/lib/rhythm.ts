@@ -73,6 +73,64 @@ const funk16 = (): RhythmStep[] => {
   return s
 }
 
+/* ── Bossa：轻拍底鼓在 1·3，军鼓落在「2 的反拍 / 4」，踩镲走八分 ── */
+const bossa = (): RhythmStep[] => [
+  { kick: true, hat: true },
+  { hat: true },
+  { hat: true },
+  { snare: true, hat: true },
+  { kick: true, hat: true },
+  { hat: true },
+  { hat: true },
+  { snare: true, hat: true },
+]
+
+/* ── Samba：踩镲十六分不停，surdo 在 1·3 加切分，caixa 在 2·4 ── */
+const samba = (): RhythmStep[] => {
+  const s: RhythmStep[] = new Array(16).fill(null).map(() => ({ hat: true }))
+  s[0] = { kick: true, hat: true }
+  s[3] = { kick: true, hat: true }
+  s[4] = { snare: true, hat: true }
+  s[8] = { kick: true, hat: true }
+  s[11] = { kick: true, hat: true }
+  s[12] = { snare: true, hat: true }
+  return s
+}
+
+/* ── Reggae 一键掉（one-drop）：只有第 3 拍落底鼓+军鼓，其余走反拍踩镲 ── */
+const reggae = (): RhythmStep[] => [
+  { hat: true },
+  { hat: true },
+  { hat: true },
+  { hat: true },
+  { kick: true, snare: true, hat: true },
+  { hat: true },
+  { hat: true },
+  { hat: true },
+]
+
+/* ── 16 分直线：踩镲十六分，底鼓 1·3、军鼓 2·4，规整不切分 ── */
+const straight16 = (): RhythmStep[] => {
+  const s: RhythmStep[] = new Array(16).fill(null).map(() => ({ hat: true }))
+  s[0] = { kick: true, hat: true }
+  s[4] = { snare: true, hat: true }
+  s[8] = { kick: true, hat: true }
+  s[12] = { snare: true, hat: true }
+  return s
+}
+
+/* ── 半拍摇滚（half-time）：军鼓只在第 3 拍，空间感强，适合 ballad / 推进段 ── */
+const halfTime = (): RhythmStep[] => [
+  { kick: true, hat: true },
+  { hat: true },
+  { hat: true },
+  { hat: true },
+  { snare: true, hat: true },
+  { hat: true },
+  { hat: true },
+  { hat: true },
+]
+
 export const RHYTHM_PRESETS: RhythmPreset[] = [
   {
     id: 'click-44',
@@ -127,6 +185,51 @@ export const RHYTHM_PRESETS: RhythmPreset[] = [
     subdiv: 4,
     steps: funk16(),
     tip: '十六分踩镲 + 切分底鼓，funk 的「反拍律动」——重心落在「and」上。',
+  },
+  {
+    id: 'drums-bossa',
+    label: 'Bossa 波萨',
+    beat: '4/4',
+    kit: 'drums',
+    subdiv: 2,
+    steps: bossa(),
+    tip: '底鼓在 1·3、军鼓落在 2 的反拍与 4，轻柔摇摆——bossa / city pop 的呼吸。',
+  },
+  {
+    id: 'drums-samba',
+    label: 'Samba 桑巴',
+    beat: '4/4',
+    kit: 'drums',
+    subdiv: 4,
+    steps: samba(),
+    tip: '踩镲十六分不停、低音鼓切分、caixa 军鼓在 2·4——桑巴的向前驱动力。',
+  },
+  {
+    id: 'drums-reggae',
+    label: 'Reggae 一键掉',
+    beat: '4/4',
+    kit: 'drums',
+    subdiv: 2,
+    steps: reggae(),
+    tip: '反拍踩镲 + 只有第 3 拍落鼓（one-drop）——雷鬼标志性的「空了一拍」。',
+  },
+  {
+    id: 'drums-straight16',
+    label: '16分 直线',
+    beat: '4/4',
+    kit: 'drums',
+    subdiv: 4,
+    steps: straight16(),
+    tip: '规整的十六分：底鼓 1·3、军鼓 2·4，不切分。最稳的 rock / pop 鼓床。',
+  },
+  {
+    id: 'drums-halftime',
+    label: '半拍摇滚',
+    beat: '4/4',
+    kit: 'drums',
+    subdiv: 2,
+    steps: halfTime(),
+    tip: '军鼓只在第 3 拍，空间拉大——ballad / 副歌推进段的「让拍子喘口气」。',
   },
 ]
 
