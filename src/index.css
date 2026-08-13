@@ -1346,7 +1346,7 @@
 }
 .chord-head__name {
   font-family: var(--font-display);
-  font-size: 2.7rem;
+  font-size: clamp(1.9rem, 3.4vw, 2.7rem);
   font-weight: 700;
   color: var(--ink);
   line-height: 1;
@@ -1370,12 +1370,31 @@
   color: var(--ink-2);
 }
 
+/* 和弦图容器：占据卡片剩余高度（flex:1），让 SVG 在任意逻辑视口下
+   都按卡片剩余空间成比例缩放——矮屏（27寸 1080p 被 Windows 缩放后）自动变小，
+   基准 1080p 保持原大小，既不顶破卡片、也不塌缩。 */
+.chord-diagram-wrap {
+  flex: 1 1 auto;
+  min-height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.4rem 0;
+}
+
 .chord-diagram {
-  width: clamp(300px, 32vw, 440px);
-  max-width: 100%;
-  height: auto;
+  /* 跟随卡片宽度收缩（不再锁死视口 vw），并给高度封顶：
+     27寸 1080p 在 Windows 下常被自动缩放 125~150%，逻辑视口变窄变矮，
+     旧版 width:32vw 会让和弦图相对过大、贴边甚至顶破卡片。
+     现在 width/height 占满 wrap，max-width 封顶、max-height 不超容器，
+     矮屏下成比例缩小，绝不溢出边框。 */
+  width: 100%;
+  height: 100%;
+  max-width: 380px;
+  max-height: 100%;
+  flex-shrink: 0;
   display: block;
-  margin: 0.75rem auto 0;
+  margin: 0;
   shape-rendering: geometricPrecision;
   text-rendering: geometricPrecision;
   /* 子像素抗锯齿让细线/小字在 LCD 上更锐利，抵消全局 antialiased 的灰化 */
@@ -1502,6 +1521,7 @@
 .module-scroll {
   flex: 1 1 auto;
   overflow-y: auto;
+  overflow-x: hidden;
   min-height: 0;
   display: flex;
   flex-direction: column;

@@ -224,7 +224,9 @@ export function ChordLibrary({ tuning, settings }: ChordLibraryProps) {
               <span className="chord-head__notes">{notesText}</span>
             </div>
 
-            <ChordDiagram voicing={voicing} />
+            <div className="chord-diagram-wrap">
+              <ChordDiagram voicing={voicing} />
+            </div>
 
             <div className="chord-actions">
               <button className="btn btn--primary chord-actions__strum" onClick={strum} type="button">

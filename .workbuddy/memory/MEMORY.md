@@ -39,6 +39,7 @@
 - 绝不纯白/纯灰背景；用 `--paper` 渐变 + 极细噪点 SVG 营造纵深。
 - **React hooks 铁律**：组件内不要写 `if (mode === 'x') return <Other/>` 这种位于 `useMemo`/`useEffect` 等 hook **之前**的 early return——不同分支 hook 数量不一致会触发 `Rendered fewer hooks than expected`、整页白屏（无错误边界时连顶栏都消失）。多模式共用组件（如 `ChordLibrary`）应**无条件调用全部 hook**，再在 `return` 处用三元 `mode==='x' ? <A/> : <B/>` 分支；或把子模式拆成独立子组件自带 hook。
 - **空白页诊断法**：遇到「某页空白」别先猜旧 bundle，用 `puppeteer-core`（项目已装）+ 系统 Chrome（如 `C:/Program Files/Google/Chrome/Application/chrome.exe`）跑无头脚本，导航到该页抓 `pageerror`/`console`——React 崩溃会打印 `Rendered fewer hooks` 或具体组件名。受管 node 跑：`NODE_PATH=<项目>/node_modules <受管node> probe.cjs`。
+- **缩放适配铁律**：大图/和弦图等**不要**用锁死的视口单位（如 `width: clamp(300px,32vw,440px)`）来定尺寸——27寸 1080p 的 PPI≈82 很低，Windows 会把「显示缩放」自动设 125%~150%，把逻辑视口从 1920 压到 1536~1280（高 864~720），锁 vw 的大图在变窄/变矮的逻辑视口里会相对过大、贴边甚至顶破卡片。正确做法：把大图包一层 `flex:1 1 auto; min-height:140px` 的 wrap，SVG 用 `width:100%; height:100%; max-width:NNNpx; max-height:100%` + viewBox/preserveAspectRatio meet 占据卡片**剩余空间**，矮屏下自动成比例缩小、不顶破、不塌缩。诊断用 puppeteer 模拟 100/125/150/200% 逻辑视口（viewport 1920/1536/1280/960 × 1080/864/720/540）实测 overflow/顶破。
 
 ### 布局原则
 - 单页平铺、两栏撑满视口（`.app` = `grid-template-rows: auto / 1fr / auto`；`height:100dvh`）。
