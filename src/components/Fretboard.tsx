@@ -69,6 +69,8 @@ interface FretboardProps {
   /** 正在发声的弦，触发振动动画 */
   ringingString: number | null
   onFretClick?: (stringNumber: number, fret: number) => void
+  /** 紧凑模式：去掉最小宽度，让指板在窄面板里按比例缩小（如耳朵训练揭示区） */
+  compact?: boolean
 }
 
 /* ───────────────────────── 几何计算 ───────────────────────── */
@@ -145,6 +147,13 @@ const HIGHLIGHT_STYLE: Record<
     text: 'oklch(97% 0.01 60)',
     radius: 11,
   },
+  /** 强调格：音阶模式里「当前和弦把位附近」的音阶音，用黄铜金区别于根音橙与其余红 */
+  accent: {
+    fill: 'oklch(76% 0.12 80)',
+    stroke: 'oklch(52% 0.12 72)',
+    text: 'oklch(22% 0.05 55)',
+    radius: 11.5,
+  },
   /** 已弹奏（跟弹 / 模进的「轨迹」）—— 用鼠尾草绿，读作「已完成」 */
   done: {
     fill: 'url(#dotSage)',
@@ -192,6 +201,7 @@ export const Fretboard = memo(function Fretboard({
   labelMode,
   ringingString,
   onFretClick,
+  compact,
 }: FretboardProps) {
   const [hovered, setHovered] = useState<{ string: number; fret: number } | null>(null)
 
@@ -207,14 +217,14 @@ export const Fretboard = memo(function Fretboard({
   const [scopeLo, scopeHi] = scopeRange
 
   return (
-    <div className="fretboard-scroll">
+    <div className={`fretboard-scroll${compact ? ' fretboard-scroll--compact' : ''}`}>
       <svg
         className="fretboard"
         viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
         preserveAspectRatio="xMidYMid meet"
         role="group"
         aria-label={`吉他指板，${tuning.name}，共 ${maxFret} 品`}
-        style={{ minWidth: 680 }}
+        style={{ minWidth: compact ? undefined : 680, width: compact ? '100%' : undefined }}
       >
         <defs>
           {/* ── 玫瑰木底色：中间偏亮模拟指板弧度 ── */}

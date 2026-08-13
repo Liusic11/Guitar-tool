@@ -11,11 +11,11 @@
  *      ChordConnection（和弦→音阶贯通）、sessionStore（一键跳音阶页）。
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChordDiagram } from './ChordDiagram'
 import { ChordConnection } from './ChordConnection'
 import { audioEngine } from '../lib/audio'
-import { getPreset, type RhythmPreset } from '../lib/rhythm'
+import { getRhythm, type RhythmPreset } from '../lib/rhythm'
 import { useRhythmState } from '../lib/rhythmStore'
 import {
   CHORD_TYPES,
@@ -25,6 +25,8 @@ import {
   type ChordType,
   type ChordPosition,
 } from '../lib/chords'
+import { defaultScaleForChord, scaleLabel } from '../lib/harmony'
+import { sessionStore } from '../lib/session'
 import { LETTER_NAMES, midiAt, type PitchClass, type Tuning } from '../lib/music'
 
 const POSITION_OPTIONS: { id: ChordPosition; label: string }[] = [
@@ -102,7 +104,7 @@ export function ChordChanges({ tuning, onReference }: ChordChangesProps) {
   const [switches, setSwitches] = useState(0)
 
   const rhythm = useRhythmState()
-  const preset = getPreset(rhythm.presetId)
+  const preset = getRhythm(rhythm.subdiv, rhythm.kit)
 
   // 拍循环里读最新值，避免闭包拿到旧 state
   const bpmRef = useRef(bpm)
@@ -174,6 +176,7 @@ export function ChordChanges({ tuning, onReference }: ChordChangesProps) {
     void audioEngine.unlock()
     let nextTime = audioEngine.currentTime + 0.12
     let step = 0
+    let gBeat = 0 // 全局累计拍计数（跨小节、不回绕）——切换判定与视觉都靠它，4 拍才成立
     const timers: number[] = []
 
     const schedule = () => {
@@ -195,34 +198,36 @@ export function ChordChanges({ tuning, onReference }: ChordChangesProps) {
           if (spec.hat) audioEngine.hat(tPlay)
         }
 
-        // 四分音符拍边界才做视觉更新与换把判定
-        const quarterBeat = Math.floor(s / p.subdiv)
+        // 四分音符拍边界才推进全局拍计数并做换把判定
         const isBeatStart = s % p.subdiv === 0
-        const isSwitch = isBeatStart && quarterBeat % switchEveryRef.current === 0
-        if (isSwitch) {
-          const beatCursor = Math.floor(quarterBeat / switchEveryRef.current) % sequenceRef.current.length
-          const chordSpec = sequenceRef.current[beatCursor]
-          if (chordSpec) {
-            const ct = CHORD_TYPES.find((t) => t.id === chordSpec.typeId) ?? CHORD_TYPES[0]
-            const v = voiceChord(chordSpec.rootPc, ct, tuning, effectivePosRef.current)
-            audioEngine.strum(
-              v.notes.map((n) => (n.muted ? null : midiAt(tuning, n.string, n.fret))),
-              0.012,
-              tPlay,
-            )
-          }
-        }
-
-        const visualDelay = Math.max(0, (tPlay - audioEngine.currentTime) * 1000)
         if (isBeatStart) {
+          const isSwitch = gBeat % switchEveryRef.current === 0
+          if (isSwitch) {
+            const beatCursor =
+              Math.floor(gBeat / switchEveryRef.current) % sequenceRef.current.length
+            const chordSpec = sequenceRef.current[beatCursor]
+            if (chordSpec) {
+              const ct = CHORD_TYPES.find((t) => t.id === chordSpec.typeId) ?? CHORD_TYPES[0]
+              const v = voiceChord(chordSpec.rootPc, ct, tuning, effectivePosRef.current)
+              audioEngine.strum(
+                v.notes.map((n) => (n.muted ? null : midiAt(tuning, n.string, n.fret))),
+                0.012,
+                tPlay,
+              )
+            }
+          }
+
+          const visualDelay = Math.max(0, (tPlay - audioEngine.currentTime) * 1000)
+          const thisBeat = gBeat
           timers.push(
             window.setTimeout(() => {
-              setBeat(quarterBeat)
-              if (quarterBeat > 0 && quarterBeat % switchEveryRef.current === 0) {
+              setBeat(thisBeat)
+              if (thisBeat > 0 && thisBeat % switchEveryRef.current === 0) {
                 setSwitches((c) => c + 1)
               }
             }, visualDelay),
           )
+          gBeat += 1
         }
         nextTime += stepDur
         step = (step + 1) % p.steps.length
@@ -234,7 +239,7 @@ export function ChordChanges({ tuning, onReference }: ChordChangesProps) {
       window.clearInterval(interval)
       timers.forEach((t) => window.clearTimeout(t))
     }
-  }, [playing, rhythm.presetId])
+  }, [playing, rhythm.subdiv, rhythm.kit, switchEvery])
 
   const barBeat = beat % switchEvery
   const strum = () => {
@@ -243,6 +248,14 @@ export function ChordChanges({ tuning, onReference }: ChordChangesProps) {
       0.012,
     )
   }
+
+  /** 练完换把，直接在这个根音上走音阶（已预选适合该和弦的默认音阶） */
+  const goScaleForCurrent = useCallback(() => {
+    const scaleId = defaultScaleForChord(current.typeId)
+    sessionStore.setRoot(current.rootPc)
+    sessionStore.setScale(scaleId)
+    sessionStore.requestNav('scales')
+  }, [current.rootPc, current.typeId])
 
   return (
     <main className="module-stage chord-stage">
@@ -386,6 +399,16 @@ export function ChordChanges({ tuning, onReference }: ChordChangesProps) {
               <span className="changes-tap__hint">
                 当前律动「{preset.label}」驱动节拍；每到切换拍自动扫响新和弦——重音一响，你就该落在新把位。跟着听换把即可，不用腾手按键。
               </span>
+
+              {/* 贯通：练完换把，直接在这个根音上走音阶（预选适合该和弦的默认音阶） */}
+              <div className="changes-toscale">
+                <button className="btn btn--primary" onClick={goScaleForCurrent} type="button">
+                  🎯 同根音走音阶 →
+                </button>
+                <span className="changes-tap__hint">
+                  跳到音阶页会预选 {scaleLabel(defaultScaleForChord(current.typeId))}（根音 {LETTER_NAMES[current.rootPc]} 已共享），手指记忆和音阶语汇接上。
+                </span>
+              </div>
             </div>
 
             {/* 右：贯通（当前和弦属于哪些音阶） + 统计 */}

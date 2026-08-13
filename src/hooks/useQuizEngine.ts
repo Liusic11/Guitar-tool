@@ -32,6 +32,7 @@ import {
   updateMastery,
   type MasteryMap,
 } from '../lib/srs'
+import { sessionStore } from '../lib/session'
 import type { ToneProfileId } from '../lib/audio'
 import type { LabelMode } from '../components/Fretboard'
 
@@ -319,12 +320,15 @@ export const useQuizEngine = (): QuizEngine => {
   /* ─────────────────── 出题 / 揭示 / 推进 ─────────────────── */
 
   const ask = useCallback(() => {
+    // 贯通层：优先考当前共享根音的位置（和弦 / 音阶 / 耳朵写进去的根）
+    const preferredPc = sessionStore.get().rootPc
     const q = generateQuestion(
       tuning,
       settings.scope,
       settings.task,
       questionRef.current,
       settings.srsEnabled ? masteryRef.current : {},
+      preferredPc,
     )
     if (!q) {
       setRunning(false)
@@ -340,6 +344,8 @@ export const useQuizEngine = (): QuizEngine => {
     setPhase('asking')
     setCycleToken((t) => t + 1)
     setStats((s) => ({ ...s, asked: s.asked + 1 }))
+    // 把正在练的音级写回共享根音——指板训练也融入贯通上下文
+    sessionStore.setRoot(q.pitchClass)
 
     if (settings.playOnAsk) {
       // 稍微延后一点点，让入场动画和声音同时到达

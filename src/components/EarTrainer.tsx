@@ -4,6 +4,7 @@ import {
   CHORD_TYPES,
   voiceChord,
   type ChordType,
+  type Voicing,
 } from '../lib/chords'
 import {
   SCALES,
@@ -11,7 +12,11 @@ import {
   type ScaleDef,
   type ScaleNote,
 } from '../lib/scales'
-import { midiAt, type PitchClass, type Tuning } from '../lib/music'
+import { midiAt, pitchClassOf, type PitchClass, type Tuning } from '../lib/music'
+import { sessionStore } from '../lib/session'
+import { IntervalShapes } from './IntervalShapes'
+import { ChordDiagram } from './ChordDiagram'
+import { Fretboard } from './Fretboard'
 
 /* ──────────────────────────── 数据：音程 ──────────────────────────── */
 interface IntervalDef {
@@ -55,6 +60,7 @@ type EarQuestion =
       kind: 'chord'
       rootPc: PitchClass
       notes: (number | null)[]
+      voicing: Voicing
       answerId: string
       answerLabel: string
       options: EarOption[]
@@ -125,6 +131,7 @@ export function EarTrainer({ tuning }: { tuning: Tuning }) {
           kind: 'chord',
           rootPc,
           notes,
+          voicing: v,
           answerId: t.id,
           answerLabel: t.label,
           options: shuffle(CHORD_TYPES.map((c) => ({ id: c.id, label: c.label }))),
@@ -195,6 +202,32 @@ export function EarTrainer({ tuning }: { tuning: Tuning }) {
     setPickedId(null)
   }, [mode, genQuestion])
 
+  /** 揭示答案后，把「听到的根音」写进共享状态——让和弦 / 音阶页接上同一把钥匙 */
+  useEffect(() => {
+    if (!question || verdict === 'none') return
+    if (question.kind === 'interval') {
+      sessionStore.setRoot(((question.rootMidi % 12) + 12) % 12)
+    } else {
+      sessionStore.setRoot(question.rootPc)
+    }
+  }, [question, verdict])
+
+  /** 去和弦页弹「这个」：写入根音 + 和弦类型，再请求跳转 */
+  const goChords = useCallback(() => {
+    if (question?.kind !== 'chord') return
+    sessionStore.setRoot(question.rootPc)
+    sessionStore.setChord(question.answerId)
+    sessionStore.requestNav('chords')
+  }, [question])
+
+  /** 去音阶页练「这个」：写入根音 + 默认推荐音阶，再请求跳转 */
+  const goScales = useCallback(() => {
+    if (question?.kind !== 'scale') return
+    sessionStore.setRoot(question.rootPc)
+    sessionStore.setScale(question.answerId)
+    sessionStore.requestNav('scales')
+  }, [question])
+
   // 快捷键：空格再听，回车下一题（仅 ear 视图内）
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -217,6 +250,18 @@ export function EarTrainer({ tuning }: { tuning: Tuning }) {
     () => ({ interval: '音程辨识', chord: '和弦辨识', scale: '音阶听辨' }[mode]),
     [mode],
   )
+
+  /** 音阶揭示后：把整条音阶铺在指板上，根音（橙色）高亮——一眼看到「这个音阶长在哪」 */
+  const scaleRevealHighlights = useMemo(() => {
+    if (question?.kind !== 'scale') return []
+    const def = SCALES.find((s) => s.id === question.answerId) ?? SCALES[0]
+    const positions = scalePositions(tuning, question.rootPc, def.formula, [0, 12])
+    return positions.map((p) => ({
+      string: p.string,
+      fret: p.fret,
+      kind: (p.degree === 0 ? 'answer' : 'secondary') as 'answer' | 'secondary',
+    }))
+  }, [question, tuning])
 
   return (
     <main className="module-stage ear-stage">
@@ -318,6 +363,60 @@ export function EarTrainer({ tuning }: { tuning: Tuning }) {
                   </button>
                 )}
               </div>
+
+              {/* 揭示后即展示该音程在指板上的常用距离形状（对错都展示，训练「听→看形状」） */}
+              {verdict !== 'none' && question?.kind === 'interval' && (
+                <IntervalShapes semitones={question.secondMidi - question.rootMidi} tuning={tuning} />
+              )}
+
+              {/* 和弦揭示后：竖向和弦图 + 一键去和弦页弹它 */}
+              {verdict !== 'none' && question?.kind === 'chord' && (
+                <div className="ear-shape-panel">
+                  <p className="ear-shape-panel__title">把它弹出来——指板上长这样</p>
+                  <div className="ear-chord-reveal">
+                    <div className="ear-chord-diagram">
+                      <ChordDiagram voicing={question.voicing} />
+                    </div>
+                    <div className="ear-shape-panel__actions">
+                      <button className="btn btn--primary" onClick={goChords} type="button">
+                        去和弦页弹这个 →
+                      </button>
+                      <p className="ear-shape-panel__hint">
+                        根音 {ROOT_LABELS[question.rootPc]} 已写入共享——点按钮直接跳到和弦页开练。
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 音阶揭示后：整条音阶铺在指板上 + 一键去音阶页练它 */}
+              {verdict !== 'none' && question?.kind === 'scale' && (
+                <div className="ear-shape-panel">
+                  <p className="ear-shape-panel__title">在指板上走这个音阶</p>
+                  <div className="ear-fretboard-wrap">
+                    <Fretboard
+                      tuning={tuning}
+                      maxFret={12}
+                      highlights={scaleRevealHighlights}
+                      targetString={null}
+                      scopeRange={[0, 12]}
+                      interactive={false}
+                      showAllNotes={false}
+                      labelMode="letter"
+                      ringingString={null}
+                      compact
+                    />
+                  </div>
+                  <div className="ear-shape-panel__actions">
+                    <button className="btn btn--primary" onClick={goScales} type="button">
+                      去音阶页练这个 →
+                    </button>
+                    <p className="ear-shape-panel__hint">
+                      {ROOT_LABELS[question.rootPc]} {question.answerLabel}：根音已写入共享——跳过去直接在能 solo 的把位开练。
+                    </p>
+                  </div>
+                </div>
+              )}
             </section>
 
             {/* 右：老师提示（揭示后给解析） */}

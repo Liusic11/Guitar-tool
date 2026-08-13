@@ -40,6 +40,7 @@ export const CHORD_SCALE_MAP: Record<string, ScaleSuggestion[]> = {
     { scaleId: 'minorPent', fit: 'strong', reason: '小调五声 = 自然小调去掉 2、6 级，去掉了最「刺」的半音，暗而安全，摇滚 / blues 主粮。' },
     { scaleId: 'majorPent', fit: 'color', reason: '关系大调五声（C 大调五声 = A 小调五声同音），同一个把位换根音就到大调味，制造明暗对比。' },
     { scaleId: 'dorian', fit: 'color', reason: '多利亚把 6 级抬亮，小调里多一丝 funky 的亮——比纯自然小调更有 groove。' },
+    { scaleId: 'phrygian', fit: 'color', reason: '弗利几亚把 2 级压成 ♭2，小调里多一股西班牙 / 金属的暗狠——想让小调更「异域」或更「凶」就上它。' },
   ],
   dom7: [
     { scaleId: 'mixolydian', fit: 'strong', reason: '混合利底亚 = 1·2·3·4·5·6·♭7，和属七的 1·3·5·♭7 完全吻合，属七上的指定音阶。' },
@@ -55,9 +56,11 @@ export const CHORD_SCALE_MAP: Record<string, ScaleSuggestion[]> = {
   maj7: [
     { scaleId: 'major', fit: 'strong', reason: '大调音阶含 1·3·5·7，和 maj7 的 1·3·5·7 完美对应，最「家」。' },
     { scaleId: 'majorPent', fit: 'strong', reason: '大调五声拿掉 4、7 级冲突，留下明亮安全的五个音。' },
+    { scaleId: 'lydian', fit: 'color', reason: '利底亚把 4 级抬成 #4，大七和弦上多一层悬浮的梦幻亮色，jazz ballad / fusion 的招牌——比普通大调「高级」一点。' },
   ],
   m7b5: [
-    { scaleId: 'minor', fit: 'color', reason: '严格说 m7♭5 该用 Locrian（半减音阶），我们这里没有；折中：用同根音自然小调，但把 5 音按 ♭5 弹——它正是 jazz 标准曲 ii–V–I 里 ii 级的味道。' },
+    { scaleId: 'locrian', fit: 'strong', reason: 'Locrian（半减音阶）才是 m7♭5 的本命音阶：它天然含 ♭5，正好对上和弦的悬疑感，jazz 标准曲 ii–V–I 的 ii 级就该用它去 solo。' },
+    { scaleId: 'minor', fit: 'color', reason: '没有 ♭5 的折中方案：用同根音自然小调，但把 5 音按 ♭5 弹，也能近似那个半减味。' },
     { scaleId: 'dorian', fit: 'tension', reason: '多利亚不含 ♭5（它用纯 5），严格不配；但很多吉他手在 Dm7♭5→G7→Cmaj7 上整段用 C 大调（即 D 多利亚）音阶，把 ♭5 当经过音带过。' },
   ],
   dim7: [
@@ -79,6 +82,27 @@ export function scaleSuggestions(typeId: string): ScaleSuggestion[] {
 
 export function scaleLabel(scaleId: string): string {
   return SCALES.find((s) => s.id === scaleId)?.label ?? scaleId
+}
+
+/**
+ * 切到音阶页时，给「切换训练」当前和弦预选一个最顺手的默认音阶。
+ * 落在能直接 solo 的把位，而不是一片无解的全指板。
+ */
+export function defaultScaleForChord(typeId: string): string {
+  switch (typeId) {
+    case 'min':
+      return 'minorPent'
+    case 'dom7':
+      return 'blues'
+    case 'maj':
+      return 'majorPent'
+    case 'm7':
+      return 'dorian'
+    case 'maj7':
+      return 'major'
+    default:
+      return 'minorPent'
+  }
 }
 
 /* ════════════════ 音阶 → 顺阶和弦 / 进行 ════════════════ */
@@ -147,6 +171,33 @@ export const DIATONIC: Record<string, DiatonicSeed[]> = {
     { numeral: 'V', offset: 7, typeId: 'min' },
     { numeral: 'vi', offset: 9, typeId: 'min' },
     { numeral: 'vii', offset: 10, typeId: 'maj' },
+  ],
+  phrygian: [
+    { numeral: 'i', offset: 0, typeId: 'min', note: '主和弦，暗狠' },
+    { numeral: '♭II', offset: 1, typeId: 'maj', note: '弗利几亚招牌大调（如 E 上的 F）' },
+    { numeral: '♭III', offset: 3, typeId: 'maj' },
+    { numeral: 'iv', offset: 5, typeId: 'min' },
+    { numeral: 'v°', offset: 7, typeId: 'dim' },
+    { numeral: '♭VI', offset: 8, typeId: 'maj' },
+    { numeral: '♭vii', offset: 10, typeId: 'min' },
+  ],
+  lydian: [
+    { numeral: 'I', offset: 0, typeId: 'maj', note: '悬浮大调，家' },
+    { numeral: 'II', offset: 2, typeId: 'maj', note: 'Lydian 的招牌大二（不是小二）' },
+    { numeral: 'iii', offset: 4, typeId: 'min' },
+    { numeral: 'iv°', offset: 6, typeId: 'dim' },
+    { numeral: 'V', offset: 7, typeId: 'maj' },
+    { numeral: 'vi', offset: 9, typeId: 'min' },
+    { numeral: 'vii', offset: 11, typeId: 'min' },
+  ],
+  locrian: [
+    { numeral: 'i°', offset: 0, typeId: 'dim', note: '减主和弦，最悬' },
+    { numeral: '♭II', offset: 1, typeId: 'maj' },
+    { numeral: '♭III', offset: 3, typeId: 'min' },
+    { numeral: 'iv', offset: 5, typeId: 'min' },
+    { numeral: '♭V', offset: 6, typeId: 'maj' },
+    { numeral: '♭VI', offset: 8, typeId: 'min' },
+    { numeral: '♭vii', offset: 10, typeId: 'min' },
   ],
 }
 
@@ -217,6 +268,17 @@ export const PROGRESSIONS: Record<string, Progression[]> = {
   mixolydian: [
     { name: 'I–IV–I', numerals: 'I – IV – I', why: 'blues / rock 的「家 → 亮一下 → 回家」，属和弦的循环，稳中带野。' },
     { name: 'I–♭VII–IV', numerals: 'I – ♭VII – IV', why: '摇滚进行（如 Sweet Home Alabama 类），♭VII 从关系小调借来，带点野。' },
+  ],
+  phrygian: [
+    { name: 'i–♭II（弗拉门戈 / 金属）', numerals: 'i – ♭II', why: '弗利几亚的招牌进行：小调主和弦接它上方那个大调（如 Em → F），那个 ♭2 一步跨上去的「异域凶狠」就是弗拉门戈扫弦和金属 riff 的魂。' },
+    { name: 'i–♭VII–♭VI', numerals: 'i – ♭VII – ♭VI', why: '从暗的小调主和弦一路下行到 ♭VII、♭VI，越走越暗再绕回，西班牙 / 暗潮金属的常用走向。' },
+  ],
+  lydian: [
+    { name: 'I–II（悬浮大调）', numerals: 'I – II', why: 'Lydian 的极简骨架：大调主和弦接它上方那个大二度大和弦（如 C → D），#4 制造「飘在半空」的希望感，fusion / 前卫金属 / 配乐最爱。' },
+    { name: 'I–IV（现代悬浮）', numerals: 'I – IV', why: 'Lydian 的 IV 级本是减和弦，但实战常把它加个七音当属色彩来 loop，制造「想解决又不想落地」的现代悬浮感，前卫 / fusion 常用。' },
+  ],
+  locrian: [
+    { name: 'i°–♭II（半减解决）', numerals: 'i° – ♭II', why: 'Locrian 几乎不单独写歌，但它是 m7♭5 的本命音阶：减主和弦接到上方大调（如 B° → C），正好是 jazz 标准曲 ii–V–I 里那个悬疑 ii 级的味道——「永远在想去哪」。' },
   ],
 }
 

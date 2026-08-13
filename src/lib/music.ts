@@ -350,6 +350,8 @@ const sampleAnchor = (pool: Anchor[], mastery: MasteryMap, now: number): number 
  * 生成一道新题。
  * @param previous 上一题，用于避免连续重复同一锚点
  * @param mastery  当前掌握度，用于加权抽题
+ * @param preferredPc 优先考的音级（贯通层：当前共享根音）。命中则把题库收敛到该音级，
+ *                    让「我刚在和弦 / 音阶页看的根音」直接变成指板训练要练的位置。
  */
 export const generateQuestion = (
   tuning: Tuning,
@@ -357,14 +359,19 @@ export const generateQuestion = (
   task: TaskType,
   previous: Question | null,
   mastery: MasteryMap,
+  preferredPc: PitchClass | null = null,
 ): Question | null => {
   const pool = buildPool(tuning, scope, task)
   if (pool.length === 0) return null
 
-  const prevKey = previous?.key ?? null
   let candidates = pool
-  if (pool.length > 1 && prevKey) {
-    const filtered = pool.filter((a) => a.key !== prevKey)
+  if (preferredPc !== null) {
+    const focused = pool.filter((a) => a.pc === preferredPc)
+    if (focused.length > 0) candidates = focused
+  }
+  const prevKey = previous?.key ?? null
+  if (candidates.length > 1 && prevKey) {
+    const filtered = candidates.filter((a) => a.key !== prevKey)
     if (filtered.length > 0) candidates = filtered
   }
 

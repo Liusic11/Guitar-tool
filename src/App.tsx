@@ -4,9 +4,10 @@ import { PromptStage } from './components/PromptStage'
 import { ChordLibrary } from './components/ChordLibrary'
 import { EarTrainer } from './components/EarTrainer'
 import { ScaleTrainer } from './components/ScaleTrainer'
+import { JamTrainer } from './components/JamTrainer'
 import { SettingsDrawer } from './components/SettingsDrawer'
 import { useQuizEngine } from './hooks/useQuizEngine'
-import { MAX_FRET } from './lib/music'
+import { MAX_FRET, LETTER_NAMES } from './lib/music'
 import { audioEngine } from './lib/audio'
 import { sessionStore } from './lib/session'
 
@@ -43,12 +44,12 @@ export default function App() {
   } = engine
 
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [view, setView] = useState<'train' | 'chords' | 'scales' | 'ear'>('train')
+  const [view, setView] = useState<'train' | 'chords' | 'scales' | 'ear' | 'jam'>('train')
   const task = settings.task
 
   // 离开指板训练时若还在跑就先停掉，避免两套声音打架
   const switchView = useCallback(
-    (next: 'train' | 'chords' | 'scales' | 'ear') => {
+    (next: 'train' | 'chords' | 'scales' | 'ear' | 'jam') => {
       if (next !== 'train' && running) stop()
       setView(next)
     },
@@ -274,6 +275,13 @@ export default function App() {
             >
               耳朵
             </button>
+            <button
+              className="segmented__item"
+              aria-pressed={view === 'jam'}
+              onClick={() => switchView('jam')}
+            >
+              Jam
+            </button>
           </div>
 
           {view === 'train' && (
@@ -369,6 +377,14 @@ export default function App() {
       {/* ══════════ 主舞台：按模块切换 ══════════ */}
       {view === 'train' ? (
         <main className="stage">
+          {navState.rootPc !== null && (
+            <div className="train-context" role="status">
+              <span className="train-context__dot" aria-hidden="true" />
+              <span>
+                贯通根音 <b>{LETTER_NAMES[navState.rootPc]}</b> · 指板优先考它的位置
+              </span>
+            </div>
+          )}
           <PromptStage
             phase={phase}
             mode={settings.mode}
@@ -393,8 +409,10 @@ export default function App() {
         <ChordLibrary tuning={tuning} settings={settings} />
       ) : view === 'scales' ? (
         <ScaleTrainer tuning={tuning} />
-      ) : (
+      ) : view === 'ear' ? (
         <EarTrainer tuning={tuning} />
+      ) : (
+        <JamTrainer tuning={tuning} />
       )}
 
       {/* ══════════ 指板 ══════════ */}

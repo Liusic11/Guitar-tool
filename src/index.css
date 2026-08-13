@@ -935,6 +935,11 @@
     border-radius: 3px;
   }
 
+  /* 紧凑模式：在窄面板里不横向滚动，按比例缩小填满 */
+  .fretboard-scroll--compact {
+    overflow: visible;
+  }
+
   /* 点击热区 */
   .fret-cell {
     fill: transparent;
@@ -1528,6 +1533,249 @@
   padding: var(--s-4) clamp(var(--s-4), 3vw, var(--s-6));
 }
 
+/* 指板训练顶部的「贯通根音」徽标——让 note↔chord↔ear 的连线可见 */
+.train-context {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 var(--s-3);
+  padding: 0.3rem 0.7rem;
+  background: var(--paper-sunk);
+  border: 1px solid var(--ink-4);
+  border-radius: var(--radius);
+  font-size: 0.8rem;
+  line-height: 1.2;
+  color: var(--ink-3);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+.train-context b {
+  color: var(--ink);
+  font-weight: 700;
+}
+.train-context__dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: var(--ember);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ember) 22%, transparent);
+}
+
+/* ════════════════ Jam 训练器 ════════════════ */
+.jam {
+  max-width: 1680px;
+  width: 100%;
+  margin: 0 auto;
+  gap: var(--s-3);
+}
+.jam-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.9rem 1.5rem;
+  flex-wrap: wrap;
+}
+.jam-head .field {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+.jam-head .field__label {
+  margin: 0;
+  font-weight: 700;
+  color: var(--ink-2);
+  flex: 0 0 auto;
+}
+.jam-key {
+  margin-left: auto;
+  font-size: 0.9rem;
+  color: var(--ink-3);
+  align-self: center;
+}
+.jam-key b {
+  color: var(--ink);
+}
+
+.jam-timeline {
+  display: flex;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+  margin: 0.15rem 0 0.35rem;
+}
+.jam-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0.35rem 0.45rem 0.25rem;
+  background: var(--paper-2);
+  border: 1px solid var(--ink-4);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+  min-width: 62px;
+}
+.jam-step:hover {
+  border-color: var(--ink-3);
+}
+.jam-step.is-current {
+  border-color: var(--ember);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ember) 30%, transparent);
+  transform: translateY(-2px);
+  background: var(--paper);
+}
+.jam-step__num {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+.jam-step.is-current .jam-step__num {
+  color: var(--ember);
+}
+.jam-step__name {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+.jam-step .chord-diagram {
+  width: 50px;
+  height: auto;
+  display: block;
+}
+
+.jam-layout {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) minmax(260px, 0.95fr);
+  gap: 1.25rem;
+  align-items: stretch;
+}
+.jam-fret {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+.jam-fret__caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.4rem;
+}
+.jam-fret__title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+.jam-fret__hint {
+  font-weight: 400;
+  color: var(--ink-3);
+  font-size: 0.8rem;
+  margin-left: 0.5rem;
+}
+.jam-fret__legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+  font-size: 0.74rem;
+  color: var(--ink-3);
+}
+.jam-fret__legend .lg {
+  width: 0.62rem;
+  height: 0.62rem;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 0.28rem;
+  vertical-align: middle;
+}
+.jam-fret__legend .lg--root {
+  background: var(--ember);
+}
+.jam-fret__legend .lg--accent {
+  background: var(--brass);
+}
+.jam-fret__legend .lg--sec {
+  background: oklch(62% 0.09 42);
+}
+.jam-fret__legend .jam-fret__hint {
+  margin-left: 0;
+}
+.jam-fret__board {
+  flex: 1 1 auto;
+  min-height: 150px;
+  display: flex;
+  align-items: center;
+  background: var(--paper-2);
+  border: 1px solid var(--ink-4);
+  border-radius: var(--radius);
+  padding: 0.5rem 0.75rem;
+}
+.jam-fret__board .fretboard-scroll {
+  width: 100%;
+  overflow: hidden;
+}
+.jam-fret__board .fretboard {
+  width: 100%;
+}
+
+.jam-theory {
+  min-height: 0;
+  overflow-y: auto;
+}
+.jam-theory__block {
+  margin-top: 0.6rem;
+}
+.jam-theory__tip {
+  margin-top: 0.8rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed var(--ink-4);
+}
+.chord-theory__p.is-active {
+  background: color-mix(in srgb, var(--ember) 14%, transparent);
+  border-radius: var(--radius-sm, 6px);
+  padding: 0.25rem 0.4rem;
+  margin-left: -0.4rem;
+}
+
+.jam-bottom {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 0.4rem;
+}
+.jam-bottom__right {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+/* 把位切换小号分段控件 */
+.segmented--sm .segmented__item {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.78rem;
+}
+.btn.is-on {
+  background: color-mix(in srgb, var(--ember) 18%, var(--paper));
+  border-color: var(--ember);
+  color: var(--ember);
+}
+
+@media (max-width: 1024px) {
+  .jam-layout {
+    grid-template-columns: 1fr;
+  }
+  .jam-fret__board {
+    min-height: 200px;
+  }
+}
+
 .chord-panel {
   flex: 1 1 auto;
   min-height: 0;
@@ -1646,9 +1894,16 @@
   text-align: center;
 }
 
+.scale-controls .field--scale .segmented {
+  /* 音阶类型最多（现 10 个），允许换行，绝不溢出被裁切 */
+  flex-wrap: wrap;
+}
+
 .scale-controls .field--scale .segmented__item {
-  /* 音阶类型最多，给一点额外横向空间 */
+  /* 音阶类型最多，给一点额外横向空间；按内容宽度排、可换行 */
+  flex: 0 1 auto;
   padding: 0.35rem 0.65rem;
+  white-space: nowrap;
 }
 
 @media (max-width: 1180px) {
@@ -2077,6 +2332,153 @@
   color: var(--ink-3);
   border-top: 1px dashed var(--ink-4);
   padding-top: 0.7rem;
+}
+
+/* ════════════ 音程指板形状 ════════════ */
+.ear-shape-panel {
+  margin-top: 0.6rem;
+  padding: 1rem 1.1rem;
+  background: linear-gradient(180deg, var(--paper-2), var(--paper));
+  border: 1px solid var(--ink-4);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sunk);
+}
+.ear-shape-panel__title {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0 0 0.25rem;
+}
+.ear-shape-panel__hint {
+  font-size: 0.9rem;
+  color: var(--ink-3);
+  margin: 0 0 0.85rem;
+  line-height: 1.5;
+}
+.ear-shape-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.8rem;
+}
+.ear-shape-card {
+  background: var(--paper);
+  border: 1px solid var(--ink-4);
+  border-radius: var(--radius);
+  padding: 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  box-shadow: var(--shadow-raise);
+}
+.ear-shape-card__caption {
+  font-family: var(--font-ui);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0;
+  text-align: center;
+}
+.ear-shape-card__svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.ear-shape-fret {
+  stroke: var(--ink-4);
+  stroke-width: 1.5;
+}
+.ear-shape-string {
+  stroke: var(--ink-3);
+  stroke-width: 1.2;
+}
+.ear-shape-fretnum,
+.ear-shape-stringnum {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  fill: var(--ink-3);
+  text-anchor: middle;
+  font-weight: 700;
+}
+.ear-shape-line {
+  stroke: var(--ember);
+  stroke-width: 2;
+  stroke-linecap: round;
+  opacity: 0.65;
+}
+.ear-shape-root {
+  fill: var(--ember);
+}
+.ear-shape-target {
+  fill: var(--sage);
+}
+.ear-shape-legend {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+.ear-shape-legend__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.ear-shape-legend__dot--root {
+  background: var(--ember);
+}
+.ear-shape-legend__dot--target {
+  background: var(--sage);
+}
+
+/* 耳朵揭示区：和弦竖向图 + 音阶紧凑指板 */
+.ear-chord-reveal {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.ear-chord-diagram {
+  width: min(190px, 48%);
+  flex-shrink: 0;
+}
+.ear-chord-diagram .chord-diagram {
+  width: 100%;
+  height: auto;
+  max-height: none;
+  flex-shrink: 0;
+}
+.ear-shape-panel__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 190px;
+}
+.ear-fretboard-wrap {
+  margin: 0.5rem 0 0.3rem;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--paper-sunk);
+  border: 1px solid var(--ink-4);
+}
+
+/* 切换训练 → 音阶 贯通按钮 */
+.changes-toscale {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 0.9rem;
+  padding-top: 0.9rem;
+  border-top: 1px dashed var(--ink-4);
+}
+.changes-toscale .changes-tap__hint {
+  margin: 0;
+  flex: 1;
+  min-width: 200px;
 }
 
 @media (max-width: 1024px) {

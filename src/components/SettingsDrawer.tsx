@@ -23,7 +23,7 @@ import {
 import type { MasteryMap } from '../lib/srs'
 import type { LabelMode } from './Fretboard'
 import type { ToneProfileId } from '../lib/audio'
-import { RHYTHM_PRESETS } from '../lib/rhythm'
+import { RHYTHM_SUBDIVISIONS, RHYTHM_KITS } from '../lib/rhythm'
 import { useRhythmState, rhythmStore } from '../lib/rhythmStore'
 import type { Settings, Stats } from '../hooks/useQuizEngine'
 
@@ -433,22 +433,42 @@ export const SettingsDrawer = memo(function SettingsDrawer({
           </div>
 
           <div className="field">
-            <label className="field__label">节拍型</label>
-            <div className="segmented segmented--scale" role="group" aria-label="节拍型">
-              {RHYTHM_PRESETS.map((p) => (
+            <label className="field__label">时值</label>
+            <div className="segmented" role="group" aria-label="时值">
+              {RHYTHM_SUBDIVISIONS.map((o) => (
                 <button
-                  key={p.id}
+                  key={o.id}
                   className="segmented__item"
-                  aria-pressed={rhythm.presetId === p.id}
-                  onClick={() => rhythmStore.setPreset(p.id)}
+                  aria-pressed={rhythm.subdiv === o.id}
+                  onClick={() => rhythmStore.setSubdiv(o.id)}
                   type="button"
                 >
-                  {p.label}
+                  {o.label}
                 </button>
               ))}
             </div>
             <p className="field__hint">
-              {RHYTHM_PRESETS.find((p) => p.id === rhythm.presetId)?.tip}
+              {RHYTHM_SUBDIVISIONS.find((o) => o.id === rhythm.subdiv)?.tip}
+            </p>
+          </div>
+
+          <div className="field">
+            <label className="field__label">音色</label>
+            <div className="segmented" role="group" aria-label="音色">
+              {RHYTHM_KITS.map((o) => (
+                <button
+                  key={o.id}
+                  className="segmented__item"
+                  aria-pressed={rhythm.kit === o.id}
+                  onClick={() => rhythmStore.setKit(o.id)}
+                  type="button"
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+            <p className="field__hint">
+              {RHYTHM_KITS.find((o) => o.id === rhythm.kit)?.tip}
             </p>
           </div>
 

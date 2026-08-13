@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
-import { getPreset, type RhythmPreset } from '../lib/rhythm'
+import { getRhythm, type RhythmPreset } from '../lib/rhythm'
 import { useRhythmState } from '../lib/rhythmStore'
 import { audioEngine } from '../lib/audio'
 
 export function RhythmBar({ onBeat }: { onBeat?: (beatIndex: number) => void }) {
-  const { bpm, presetId } = useRhythmState()
+  const { bpm, subdiv, kit } = useRhythmState()
   const [playing, setPlaying] = useState(false)
   const [playStep, setPlayStep] = useState(-1)
 
-  const preset = getPreset(presetId)
+  const preset = getRhythm(subdiv, kit)
   const beatsPerBar = preset.steps.length / preset.subdiv
 
   // 实时读取，避免拖动时重启调度器（BPM 平滑，preset 切换则干净重启）
@@ -63,7 +63,7 @@ export function RhythmBar({ onBeat }: { onBeat?: (beatIndex: number) => void }) 
       window.clearInterval(interval)
       timers.forEach((t) => window.clearTimeout(t))
     }
-  }, [playing, presetId])
+  }, [playing, subdiv, kit])
 
   const currentBeat = playStep >= 0 ? Math.floor(playStep / preset.subdiv) : -1
 
