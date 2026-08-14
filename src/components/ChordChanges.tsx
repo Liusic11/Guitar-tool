@@ -33,6 +33,8 @@ const POSITION_OPTIONS: { id: ChordPosition; label: string }[] = [
   { id: 'root6', label: 'E 形（6弦）' },
   { id: 'root5', label: 'A 形（5弦）' },
   { id: 'root4', label: 'D 形（4弦）' },
+  { id: 'g', label: 'G 形（6弦伸展）' },
+  { id: 'c', label: 'C 形（5弦伸展）' },
   { id: 'open', label: '开放把位' },
   { id: 'auto', label: '不限把位' },
 ]

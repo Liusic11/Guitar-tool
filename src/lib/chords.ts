@@ -11,7 +11,7 @@ import { pitchClassOf, pitchClassAt, type PitchClass, type Tuning } from './musi
 
 export type ChordCategory = 'triad' | 'seventh'
 
-export type ChordPosition = 'auto' | 'open' | 'root6' | 'root5' | 'root4'
+export type ChordPosition = 'auto' | 'open' | 'root6' | 'root5' | 'root4' | 'g' | 'c'
 
 export interface ChordType {
   /** 稳定 id */
@@ -216,6 +216,126 @@ const ROOT_STRING_NAMES: Record<number, string> = {
   4: 'D 形横按',
 }
 
+/* ─────────────── CAGED 补全：G 形 / C 形 ───────────────
+ * 标准可移动 CAGED 五形状里，E/A/D 是「根音在窗口低端」的横按形，
+ * 而 G 形（开放 G：3-2-0-0-0-3）与 C 形（开放 C：x-3-2-0-1-0）的
+ * 特点是部分音落在根音品位**之下**（比根音低 1~3 品），这是旧算法
+ * 的 [base, base+3] 窗口永远生成不出来的，所以此前只给了 4 个候选。
+ *
+ * 这里用「偏移模板 + 就近取和弦音」实现：每根弦按模板的偏移算出理想品位，
+ * 再在 ±2 品窗口里取离理想品位最近的**真实和弦音**。这样任意和弦类型
+ * （大/小/七/半减/减/增）都能得到保形的移动把位，且每个音都保证是
+ * 该和弦的和弦音（确定性、不自创体系）。
+ *
+ *  G 形（根音落 6 弦，如 A 大 = 5-4-2-2-2-5）：
+ *    三和弦：6=r  5=r-1(3度)  4=r-3(5度)  3=r-3(根)  2=r-3(3度)  1=r(根)
+ *    七和弦：1 弦改成 7 音（r-2），如 G7 = 3-2-0-0-0-1
+ *  C 形（根音落 5 弦，6 弦闷音，如 D 大 = x-5-4-2-3-2）：
+ *    三和弦：5=r  4=r-1(3度)  3=r-3(5度)  2=r-2(根)  1=r-3(3度)
+ *    七和弦：3 弦改成 7 音（r+0），如 C7 = x-3-2-3-1-0
+ */
+interface ShapeTemplate {
+  position: ChordPosition
+  rootString: number
+  label: string
+  /** 每根弦（6→1）相对根音品位的偏移；null = 闷音 */
+  triad: (number | null)[]
+  seventh: (number | null)[]
+}
+
+const CAGED_SHAPES: ShapeTemplate[] = [
+  {
+    position: 'g',
+    rootString: 6,
+    label: 'G 形',
+    triad: [0, -1, -3, -3, -3, 0],
+    seventh: [0, -1, -3, -3, -3, -2],
+  },
+  {
+    position: 'c',
+    rootString: 5,
+    label: 'C 形',
+    triad: [null, 0, -1, -3, -2, -3],
+    seventh: [null, 0, -1, 0, -2, -3],
+  },
+]
+
+/**
+ * 生成 CAGED G/C 形的把位：每根弦按模板偏移取理想品位，
+ * 在 ±2 品窗口内找离它最近的和弦音（保证每个音都是真实和弦音）。
+ * 找不到就闷音；根音缺失或发声弦太少则整体判为不可用。
+ */
+function buildCagedVoicing(
+  rootPc: PitchClass,
+  type: ChordType,
+  tuning: Tuning,
+  template: ShapeTemplate,
+  baseFret: number,
+): Voicing | null {
+  const chordTones = new Set(type.formula.map((i) => (rootPc + i) % 12))
+  const offsets = type.category === 'seventh' ? template.seventh : template.triad
+  const notes: VoicingNote[] = []
+
+  for (const spec of tuning.strings) {
+    const s = spec.number
+    const offset = offsets[6 - s]
+    if (offset === null) {
+      notes.push({ string: s, fret: 0, finger: null, muted: true, isRoot: false, open: false })
+      continue
+    }
+    const ideal = baseFret + offset
+    const lo = Math.max(0, ideal - 2)
+    const hi = ideal + 2
+    let chosen: number | null = null
+    let bestDist = Infinity
+    for (let f = lo; f <= hi; f++) {
+      if (!chordTones.has(pitchClassAt(tuning, s, f))) continue
+      const d = Math.abs(f - ideal)
+      if (d < bestDist) {
+        bestDist = d
+        chosen = f
+      }
+    }
+    if (chosen === null) {
+      notes.push({ string: s, fret: 0, finger: null, muted: true, isRoot: false, open: false })
+      continue
+    }
+    const pc = pitchClassAt(tuning, s, chosen)
+    notes.push({
+      string: s,
+      fret: chosen,
+      finger: null,
+      muted: false,
+      isRoot: pc === rootPc,
+      open: chosen === 0,
+    })
+  }
+
+  const voicing: Voicing = { baseFret, rootString: template.rootString, hasBarre: false, notes }
+  if (!isValidVoicing(voicing, type)) return null
+
+  // CAGED 形强度校验：七和弦必须包含 7 音；♭5/♯5 类色彩和弦必须含其色彩音
+  const pcs = new Set(notes.filter((n) => !n.muted).map((n) => pitchClassAt(tuning, n.string, n.fret)))
+  if (type.formula.length >= 4 && !pcs.has(((rootPc + type.formula[3]) % 12 + 12) % 12)) return null
+  const color = type.formula[2]
+  if (color === 6 || color === 8 || color === 9) {
+    if (!pcs.has(((rootPc + color) % 12 + 12) % 12)) return null
+  }
+
+  // 指法 + 显示基品：含空弦时按开放把位画（画琴枕），否则取最低按品位并视为横按
+  const hasOpen = notes.some((n) => !n.muted && n.open)
+  if (hasOpen) {
+    voicing.baseFret = 0
+    voicing.hasBarre = false
+    assignFingers(notes, 0)
+  } else {
+    voicing.baseFret = Math.min(...notes.filter((n) => !n.muted).map((n) => n.fret))
+    voicing.hasBarre = true
+    assignFingers(notes, voicing.baseFret)
+  }
+  return voicing
+}
+
 /** 为某根弦计算「根音落在这根弦上」所需的 baseFret */
 function baseFretForRootString(
   rootPc: PitchClass,
@@ -340,6 +460,7 @@ function makeCandidate(
  * · 根音落 6 弦（E 形横按）
  * · 根音落 5 弦（A 形横按）
  * · 根音落 4 弦（D 形横按，高把位时才会有）
+ * · CAGED 补全：G 形（根音落 6 弦的开放伸展形）/ C 形（根音落 5 弦的开放伸展形）
  */
 export function listChordVoicings(
   rootPc: PitchClass,
@@ -359,6 +480,20 @@ export function listChordVoicings(
     const position: ChordPosition = rootString === 6 ? 'root6' : rootString === 5 ? 'root5' : 'root4'
     const candidate = makeCandidate(rootPc, type, tuning, position, rootString, base)
     if (candidate) options.push(candidate)
+  }
+
+  // CAGED 补全：G 形 / C 形（带 7 音的移动形，个别和弦类型找不到色彩音时会跳过）
+  for (const tpl of CAGED_SHAPES) {
+    const base = baseFretForRootString(rootPc, tpl.rootString, tuning)
+    if (base === null) continue
+    const voicing = buildCagedVoicing(rootPc, type, tuning, tpl, base)
+    if (!voicing) continue
+    options.push({
+      voicing,
+      position: tpl.position,
+      label: `${tpl.label}（${base}品）`,
+      shortLabel: `${tpl.label}${base}品`,
+    })
   }
 
   return options

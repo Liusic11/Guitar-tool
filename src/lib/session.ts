@@ -10,7 +10,7 @@
 
 import { useSyncExternalStore } from 'react'
 
-export type ViewKey = 'train' | 'chords' | 'scales' | 'ear' | 'jam'
+export type ViewKey = 'train' | 'chords' | 'scales' | 'ear' | 'jam' | 'licks'
 
 interface SharedState {
   /** 当前共享根音（pitch class 0..11），null = 尚未设定 */
@@ -25,6 +25,8 @@ interface SharedState {
   keyQuality: 'major' | 'minor' | null
   /** 耳朵训练「去 Jam 页练这个」写入的目标进行 id；Jam 挂载时消费 */
   jamPresetId: string | null
+  /** Jam / 和弦页「去乐句页练这个」写入的目标乐句 id；乐句页挂载时消费 */
+  lickId: string | null
   /** 跨模块导航请求；消费后置空 */
   navRequest: { view: ViewKey; token: number } | null
 }
@@ -39,6 +41,7 @@ function load(): SharedState {
     keyPc: null,
     keyQuality: null,
     jamPresetId: null,
+    lickId: null,
     navRequest: null,
   }
   try {
@@ -51,6 +54,7 @@ function load(): SharedState {
       if (typeof p.keyPc === 'number') base.keyPc = p.keyPc
       if (p.keyQuality === 'major' || p.keyQuality === 'minor') base.keyQuality = p.keyQuality
       if (typeof p.jamPresetId === 'string') base.jamPresetId = p.jamPresetId
+      if (typeof p.lickId === 'string') base.lickId = p.lickId
     }
   } catch {
     /* localStorage 不可用（如 SSR / 隐私模式）时静默回退 */
@@ -72,6 +76,7 @@ function persist() {
         keyPc: state.keyPc,
         keyQuality: state.keyQuality,
         jamPresetId: state.jamPresetId,
+        lickId: state.lickId,
       }),
     )
   } catch {
@@ -117,6 +122,12 @@ export const sessionStore = {
   setJamPreset(id: string) {
     if (state.jamPresetId === id) return
     state = { ...state, jamPresetId: id }
+    emit()
+  },
+  /** 乐句页目标：写入目标乐句 id，乐句页挂载时消费 */
+  setLick(id: string) {
+    if (state.lickId === id) return
+    state = { ...state, lickId: id }
     emit()
   },
   /** 请求 App 切换到某个视图（同时已通过 setRoot/setScale/setChord 写好目标状态） */

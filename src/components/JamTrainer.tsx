@@ -33,6 +33,7 @@ import {
   scaleLabel,
 } from '../lib/progressions'
 import { sessionStore } from '../lib/session'
+import { licksForChordType, LICK_STYLE_LABEL } from '../lib/licks'
 
 type ScaleMode = 'global' | 'perchord'
 type RenderMode = 'chord' | 'scale'
@@ -358,6 +359,29 @@ export function JamTrainer({ tuning }: { tuning: Tuning }) {
           <div className="jam-theory__tip">
             <span className="chord-theory__h">练习提示</span>
             <p className="chord-theory__p">{preset.tip}</p>
+          </div>
+
+          {/* ── 乐句建议：当前和弦上能弹的句子 → 去乐句页 ── */}
+          <div className="jam-licks">
+            <span className="chord-theory__h">🎵 现在这个和弦上能弹的乐句</span>
+            {licksForChordType(currentChord.typeId, 3).map((l) => (
+              <button
+                key={l.id}
+                className="jam-licks__item"
+                onClick={() => {
+                  sessionStore.setRoot(l.rootPc)
+                  sessionStore.setLick(l.id)
+                  sessionStore.requestNav('licks')
+                }}
+                type="button"
+              >
+                <b>{l.name}</b>
+                <span>
+                  {LICK_STYLE_LABEL[l.style]} · 难度 {l.difficulty} · {l.timing}
+                </span>
+              </button>
+            ))}
+            <p className="jam-licks__hint">点一句直接去乐句页看指板、听示范</p>
           </div>
         </aside>
       </div>

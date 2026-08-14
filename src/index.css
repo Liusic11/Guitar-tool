@@ -3918,3 +3918,254 @@
     gap: var(--s-2);
   }
 }
+
+/* ════════════════ 乐句库（Lick Library）════════════════ */
+.lick {
+  max-width: 1680px;
+}
+.lick-controls {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1.25rem;
+  align-items: end;
+  margin-bottom: 0.9rem;
+}
+.lick-controls .field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.lick-controls .field--lickroot .segmented {
+  justify-content: flex-start;
+}
+.lick-layout {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) minmax(280px, 0.95fr);
+  gap: 1.25rem;
+  align-items: stretch;
+}
+.lick-figure {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 1rem 1.15rem;
+  background: var(--paper-2);
+  border: 1px solid var(--ink-4);
+  border-radius: var(--radius-lg);
+}
+.lick-figure__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+.lick-figure__style {
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--paper);
+  background: var(--ember);
+  border-radius: 999px;
+  padding: 0.16rem 0.6rem;
+  margin-right: 0.5rem;
+  vertical-align: middle;
+}
+.lick-figure__name {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+.lick-figure__diff {
+  margin-left: 0.5rem;
+  color: var(--brass);
+  font-size: 0.85rem;
+  letter-spacing: 2px;
+}
+.lick-figure__actions {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+}
+.lick-figure__board {
+  flex: 1 1 auto;
+  min-height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lick-figure__board .fretboard-scroll--compact {
+  width: 100%;
+}
+.lick-figure__notes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+}
+.lick-note-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  padding: 0.28rem 0.55rem;
+  background: var(--paper-3);
+  border: 1px solid var(--ink-4);
+  border-radius: var(--radius-sm);
+  color: var(--ink-2);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.lick-note-chip.is-current {
+  background: var(--ember);
+  color: var(--paper);
+  border-color: var(--ember);
+}
+.lick-note-chip__letter {
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+.lick-note-chip__deg {
+  font-weight: 700;
+  color: var(--brass);
+}
+.lick-note-chip.is-current .lick-note-chip__deg {
+  color: var(--paper);
+}
+.lick-figure__hint {
+  margin: 0.5rem 0 0;
+  font-size: 0.8rem;
+  color: var(--ink-3);
+}
+.lick-figure__empty {
+  font-size: 0.9rem;
+  color: var(--ink-3);
+}
+.lick-theory {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  min-height: 0;
+}
+.lick-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  overflow-y: auto;
+  padding-right: 0.2rem;
+}
+.lick-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  background: var(--paper-2);
+  border: 1px solid var(--ink-4);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  font: inherit;
+  color: inherit;
+}
+.lick-card:hover {
+  border-color: var(--brass);
+}
+.lick-card.is-active {
+  border-color: var(--ember);
+  background: var(--ember-wash);
+}
+.lick-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.lick-card__head b {
+  font-size: 0.98rem;
+  color: var(--ink);
+}
+.lick-card__meta {
+  font-size: 0.75rem;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.lick-card__timing {
+  font-size: 0.8rem;
+  color: var(--ink-2);
+}
+.lick-theory__panel {
+  margin-top: auto;
+  padding-top: 0.6rem;
+  border-top: 1px dashed var(--ink-4);
+}
+.lick-theory__tip {
+  color: var(--ink);
+}
+.lick-theory__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+.lick-theory__tag {
+  font-size: 0.76rem;
+  color: var(--ink-2);
+  background: var(--paper-3);
+  border: 1px solid var(--ink-4);
+  border-radius: 999px;
+  padding: 0.18rem 0.55rem;
+}
+
+/* Jam 页乐句建议 */
+.jam-licks {
+  margin-top: 0.4rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed var(--ink-4);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.jam-licks__item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  text-align: left;
+  padding: 0.5rem 0.7rem;
+  background: var(--paper-2);
+  border: 1px solid var(--ink-4);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+  font: inherit;
+  color: inherit;
+}
+.jam-licks__item:hover {
+  border-color: var(--ember);
+}
+.jam-licks__item b {
+  font-size: 0.9rem;
+  color: var(--ink);
+}
+.jam-licks__item span {
+  font-size: 0.76rem;
+  color: var(--ink-3);
+}
+.jam-licks__hint {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--ink-3);
+}
+
+@media (max-width: 1024px) {
+  .lick-layout {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+  .lick-controls {
+    grid-template-columns: 1fr;
+  }
+}
