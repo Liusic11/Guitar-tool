@@ -9,7 +9,7 @@
  * 设计铁律（与全站一致）：参考真实教学法，不自创体系。
  */
 
-import { LETTER_NAMES, type PitchClass, type Tuning } from './music'
+import { LETTER_NAMES, type PitchClass } from './music'
 import { CHORD_TYPES, type ChordType } from './chords'
 import { SCALES } from './scales'
 import { scaleSuggestions, chordName, chordTypeLabel } from './harmony'

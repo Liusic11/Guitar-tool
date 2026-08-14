@@ -69,23 +69,30 @@ export function ScaleConnection({ rootPc, scaleId }: ScaleConnectionProps) {
         {root} {scaleLabel(scaleId)} 里三级叠置，得到这 {chords.length} 个顺阶和弦（点开看把位）：
       </p>
 
-      <ul className="harmony__chords">
-        {chords.map((c) => (
-          <li key={c.numeral} className="harmony__chord">
-            <span className="harmony__numeral">{c.numeral}</span>
-            <button
-              className="harmony__chord-name"
-              onClick={() => openChord(c.rootPc, c.typeId)}
-              type="button"
-              title="在和弦页打开"
-            >
-              {chordName(c.rootPc, c.typeId)}
-              <small>{chordTypeLabel(c.typeId)}</small>
-            </button>
-            {c.note && <span className="harmony__chord-note">{c.note}</span>}
-          </li>
-        ))}
-      </ul>
+      {chords.length > 0 ? (
+        <ul className="harmony__chords">
+          {chords.map((c) => (
+            <li key={c.numeral} className="harmony__chord">
+              <span className="harmony__numeral">{c.numeral}</span>
+              <button
+                className="harmony__chord-name"
+                onClick={() => openChord(c.rootPc, c.typeId)}
+                type="button"
+                title="在和弦页打开"
+              >
+                {chordName(c.rootPc, c.typeId)}
+                <small>{chordTypeLabel(c.typeId)}</small>
+              </button>
+              {c.note && <span className="harmony__chord-note">{c.note}</span>}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="harmony__reason">
+          这条音阶（对称 / bebop 类）没有「传统顺阶三和弦」的概念——它更多是当作「色彩 / 经过音仓库」来用：
+          直接落在它包含的和弦（如减七、增三）上制造张力，而不是叠出一组家感和弦。换个角度听：把它当「味道」，不是「骨架」。
+        </p>
+      )}
 
       {progs.length > 0 && (
         <div className="harmony__block">

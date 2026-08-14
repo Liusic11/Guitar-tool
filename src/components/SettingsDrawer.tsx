@@ -23,7 +23,7 @@ import {
 import type { MasteryMap } from '../lib/srs'
 import type { LabelMode } from './Fretboard'
 import type { ToneProfileId } from '../lib/audio'
-import { RHYTHM_SUBDIVISIONS, RHYTHM_KITS } from '../lib/rhythm'
+import { listGrooves } from '../lib/rhythm'
 import { useRhythmState, rhythmStore } from '../lib/rhythmStore'
 import type { Settings, Stats } from '../hooks/useQuizEngine'
 
@@ -128,6 +128,8 @@ export const SettingsDrawer = memo(function SettingsDrawer({
 }: SettingsDrawerProps) {
   const panelRef = useRef<HTMLDivElement>(null)
   const rhythm = useRhythmState()
+  const grooves = listGrooves()
+  const currentGroove = grooves.find((g) => g.id === rhythm.grooveId)
 
   // Esc 关闭 + 打开时把焦点移进抽屉
   useEffect(() => {
@@ -433,43 +435,42 @@ export const SettingsDrawer = memo(function SettingsDrawer({
           </div>
 
           <div className="field">
-            <label className="field__label">时值</label>
-            <div className="segmented" role="group" aria-label="时值">
-              {RHYTHM_SUBDIVISIONS.map((o) => (
-                <button
-                  key={o.id}
-                  className="segmented__item"
-                  aria-pressed={rhythm.subdiv === o.id}
-                  onClick={() => rhythmStore.setSubdiv(o.id)}
-                  type="button"
-                >
-                  {o.label}
-                </button>
-              ))}
+            <label className="field__label">节拍器</label>
+            <div className="segmented segmented--wrap" role="group" aria-label="节拍器律动">
+              {grooves
+                .filter((g) => g.kit === 'click')
+                .map((o) => (
+                  <button
+                    key={o.id}
+                    className="segmented__item"
+                    aria-pressed={rhythm.grooveId === o.id}
+                    onClick={() => rhythmStore.setGroove(o.id)}
+                    type="button"
+                  >
+                    {o.label}
+                  </button>
+                ))}
             </div>
-            <p className="field__hint">
-              {RHYTHM_SUBDIVISIONS.find((o) => o.id === rhythm.subdiv)?.tip}
-            </p>
           </div>
 
           <div className="field">
-            <label className="field__label">音色</label>
-            <div className="segmented" role="group" aria-label="音色">
-              {RHYTHM_KITS.map((o) => (
-                <button
-                  key={o.id}
-                  className="segmented__item"
-                  aria-pressed={rhythm.kit === o.id}
-                  onClick={() => rhythmStore.setKit(o.id)}
-                  type="button"
-                >
-                  {o.label}
-                </button>
-              ))}
+            <label className="field__label">鼓点（律动）</label>
+            <div className="segmented segmented--wrap" role="group" aria-label="鼓点律动">
+              {grooves
+                .filter((g) => g.kit === 'drums')
+                .map((o) => (
+                  <button
+                    key={o.id}
+                    className="segmented__item"
+                    aria-pressed={rhythm.grooveId === o.id}
+                    onClick={() => rhythmStore.setGroove(o.id)}
+                    type="button"
+                  >
+                    {o.label}
+                  </button>
+                ))}
             </div>
-            <p className="field__hint">
-              {RHYTHM_KITS.find((o) => o.id === rhythm.kit)?.tip}
-            </p>
+            <p className="field__hint">{currentGroove?.tip}</p>
           </div>
 
           {/* ══════════ 声音 ══════════ */}

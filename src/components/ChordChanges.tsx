@@ -15,7 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChordDiagram } from './ChordDiagram'
 import { ChordConnection } from './ChordConnection'
 import { audioEngine } from '../lib/audio'
-import { getRhythm, type RhythmPreset } from '../lib/rhythm'
+import { getGroove, type RhythmPreset } from '../lib/rhythm'
 import { useRhythmState } from '../lib/rhythmStore'
 import {
   CHORD_TYPES,
@@ -103,8 +103,8 @@ export function ChordChanges({ tuning, onReference }: ChordChangesProps) {
   )
   const [switches, setSwitches] = useState(0)
 
-  const rhythm = useRhythmState()
-  const preset = getRhythm(rhythm.subdiv, rhythm.kit)
+  const { grooveId } = useRhythmState()
+  const preset = getGroove(grooveId)
 
   // 拍循环里读最新值，避免闭包拿到旧 state
   const bpmRef = useRef(bpm)
@@ -239,7 +239,7 @@ export function ChordChanges({ tuning, onReference }: ChordChangesProps) {
       window.clearInterval(interval)
       timers.forEach((t) => window.clearTimeout(t))
     }
-  }, [playing, rhythm.subdiv, rhythm.kit, switchEvery])
+  }, [playing, grooveId, switchEvery])
 
   const barBeat = beat % switchEvery
   const strum = () => {

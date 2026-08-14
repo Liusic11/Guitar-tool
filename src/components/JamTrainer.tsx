@@ -17,7 +17,7 @@ import { Fretboard, type Highlight } from './Fretboard'
 import { ChordDiagram } from './ChordDiagram'
 import { RhythmBar } from './RhythmBar'
 import { audioEngine } from '../lib/audio'
-import { getRhythm } from '../lib/rhythm'
+import { getGroove } from '../lib/rhythm'
 import { useRhythmState } from '../lib/rhythmStore'
 import { voiceChord, type ChordPosition } from '../lib/chords'
 import { SCALES, scalePositions } from '../lib/scales'
@@ -25,7 +25,6 @@ import { midiAt, type PitchClass, type Tuning } from '../lib/music'
 import { scaleSuggestions } from '../lib/harmony'
 import {
   JAM_PRESETS,
-  type JamPreset,
   typeOf,
   jamChordName,
   progressionKeyLabel,
@@ -47,9 +46,13 @@ const JAM_SHAPES: { id: ChordPosition; label: string }[] = [
 ]
 
 export function JamTrainer({ tuning }: { tuning: Tuning }) {
-  const { bpm, subdiv, kit } = useRhythmState()
+  const { bpm, grooveId } = useRhythmState()
 
-  const [presetId, setPresetId] = useState(JAM_PRESETS[0].id)
+  const [presetId, setPresetId] = useState<string>(() => {
+    // 耳朵训练「去 Jam 页练这个」写入的目标进行：挂载时优先接上
+    const requested = sessionStore.get().jamPresetId
+    return requested ?? JAM_PRESETS[0].id
+  })
   const preset = useMemo(
     () => JAM_PRESETS.find((p) => p.id === presetId) ?? JAM_PRESETS[0],
     [presetId],
@@ -72,9 +75,10 @@ export function JamTrainer({ tuning }: { tuning: Tuning }) {
     [currentChord.rootPc, currentChord.typeId, tuning, shape],
   )
 
-  // 进入 Jam 即把父调写进共享根音，其他模块能看到这条线
+  // 进入 Jam 即把父调写进共享上下文，其他模块能看到这条调性线
   useEffect(() => {
     sessionStore.setRoot(preset.keyPc)
+    sessionStore.setKey(preset.keyPc, preset.keyQuality)
   }, [preset])
 
   // ── 时间轴每和弦的小和弦图（一次算好）──
@@ -133,16 +137,18 @@ export function JamTrainer({ tuning }: { tuning: Tuning }) {
   presetRef.current = preset
   bpmRef.current = bpm
   backingRef.current = backing
-  const rhythmPreset = getRhythm(subdiv, kit)
+  const rhythmPreset = getGroove(grooveId)
   beatsPerBarRef.current = rhythmPreset.steps.length / rhythmPreset.subdiv
 
   const handleBeat = useCallback(
     (beat: number) => {
       void audioEngine.unlock()
-      const now = performance.now()
-      const beatDurMs = 60000 / bpmRef.current
-      if (now - lastBeatRef.current > beatDurMs * 2.5) {
-        tickRef.current = 0 // 检测到（重新）开始
+      const now = audioEngine.currentTime
+      const beatDur = 60 / bpmRef.current
+      // 重新开始标志：拍号回到 0 且距上次超过 2.5 拍（用户暂停后又开始）
+      // 用音频时钟判断，避免和 RhythmBar 的播放产生漂移
+      if (beat === 0 && now - lastBeatRef.current > beatDur * 2.5) {
+        tickRef.current = 0
         chordIdxRef.current = 0
         setChordIndex(0)
         setPlaying(true)
@@ -161,7 +167,7 @@ export function JamTrainer({ tuning }: { tuning: Tuning }) {
           const v = voiceChord(c.rootPc, typeOf(c.typeId), tuning)
           audioEngine.strum(
             v.notes.map((m) => (m.muted ? null : midiAt(tuning, m.string, m.fret))),
-            0.012,
+            0.009,
           )
         }
       }
@@ -169,12 +175,12 @@ export function JamTrainer({ tuning }: { tuning: Tuning }) {
     [tuning],
   )
 
-  //  watchdog：RhythmBar 停了就不再有 beat，把 playing 归位
+  //  watchdog：RhythmBar 停了就不再有 beat，把 playing 归位（同样用音频时钟）
   useEffect(() => {
     if (!playing) return
     const id = window.setInterval(() => {
-      const now = performance.now()
-      if (now - lastBeatRef.current > (60000 / bpmRef.current) * 3) setPlaying(false)
+      const now = audioEngine.currentTime
+      if (now - lastBeatRef.current > (60 / bpmRef.current) * 3) setPlaying(false)
     }, 400)
     return () => window.clearInterval(id)
   }, [playing, bpm])

@@ -6,6 +6,7 @@
  */
 
 import type { ChordType } from '../lib/chords'
+import { ConceptCheatSheet } from './ConceptCheatSheet'
 
 interface ChordTheoryProps {
   type: ChordType
@@ -51,6 +52,11 @@ export function ChordTheory({ type }: ChordTheoryProps) {
         提示：图上这是「可移动横按把位」——把整块形状沿琴颈平移，根音落回同一根弦，
         就能得到任意调的同类型和弦。吃透这一点，指板在你眼里就不再是散点，而是一组能平移的形状。
       </p>
+
+      <ConceptCheatSheet
+        filter={['basic', 'chord']}
+        subtitle="和弦页常蹦出来的黑话，老师给你翻译成大白话。看不懂时往下翻一翻。"
+      />
     </section>
   )
 }

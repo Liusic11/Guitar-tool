@@ -15,6 +15,7 @@
  */
 
 import { frequencyOf } from './music'
+import type { RhythmStep } from './rhythm'
 
 export type ToneProfileId = 'acoustic' | 'electric-clean' | 'electric-overdrive'
 
@@ -103,6 +104,8 @@ export interface PluckOptions {
   stringNumber?: number
   /** 延迟多少秒发声，用于扫弦 */
   delay?: number
+  /** 每弦微失谐（音分），让和弦「颤」成一体而非几个独立音 */
+  detuneCents?: number
 }
 
 interface VoiceHandle {
@@ -416,9 +419,13 @@ export class GuitarAudioEngine {
     if (!this.ctx || !this.bodyChainInput || this._muted) return
 
     const ctx = this.ctx
-    const { velocity = 0.8, stringNumber, delay = 0 } = options
+    const { velocity = 0.8, stringNumber, delay = 0, detuneCents = 0 } = options
     const startAt = ctx.currentTime + delay
     const { toneBase, toneScale, voiceGain } = this.profile
+
+    const source = ctx.createBufferSource()
+    source.buffer = this.getBuffer(midi)
+    source.playbackRate.value = Math.pow(2, detuneCents / 1200)
 
     if (stringNumber !== undefined) {
       const previous = this.activeVoices.get(stringNumber)
@@ -429,8 +436,7 @@ export class GuitarAudioEngine {
       }
     }
 
-    const source = ctx.createBufferSource()
-    source.buffer = this.getBuffer(midi)
+
 
     const gain = ctx.createGain()
     gain.gain.value = 0.34 * Math.pow(Math.min(1, Math.max(0.05, velocity)), 1.4) * voiceGain
@@ -458,28 +464,64 @@ export class GuitarAudioEngine {
   }
 
   /**
-   * 扫弦 —— 用于和弦试听 / 切换训练自动换把。
+   * 扫弦 —— 用于和弦试听 / 切换训练 / Jam 自动换把。
+   * 让和弦「成团」而非几个独立拨弦：加一层刮弦噪声（指甲扫过琴弦的「沙」），
+   * 每弦微失谐制造缓慢拍频让音「呼吸」成一团，spread 收紧、力度按扫弦方向自然过渡。
    * @param notes 从 6 弦到 1 弦的 MIDI 数组，null 表示该弦闷音不发声
-   * @param spread 相邻两根弦之间的时间差（秒），负值为上扫
+   * @param spread 相邻两根弦之间的时间差（秒），负值为上扫；默认 9ms，紧而连贯
    * @param when 期望开始扫弦的音频时钟时间（默认立即）；用于把和弦精准对齐到节拍
    */
-  strum(notes: (number | null)[], spread = 0.012, when?: number): void {
+  strum(notes: (number | null)[], spread = 0.009, when?: number): void {
     void this.unlock()
     if (!this.ctx || !this.bodyChainInput) return
     const baseDelay = when !== undefined ? Math.max(0, when - this.ctx.currentTime) : 0
     const upward = spread < 0
-    const step = Math.abs(spread)
+    const step = Math.abs(spread) || 0.009
     const order = upward ? [...notes].reverse() : notes
+    const sounded = order.filter((m) => m !== null)
+    const center = (sounded.length - 1) / 2
+
+    // 刮弦噪声层：把多个音「焊」成一个被扫响的整体，而不是一串独立拨弦
+    this.scrape(upward ? 'up' : 'down', this.ctx.currentTime + baseDelay, step * sounded.length)
 
     order.forEach((midi, index) => {
       if (midi === null) return
       const stringNumber = upward ? index + 1 : 6 - index
+      // 每弦微失谐（±3~6 音分，交替），缓慢拍频让和弦「呼吸」成一团
+      const detune = (index % 2 === 0 ? 1 : -1) * (3 + (index % 3))
+      // 中间弦略响、两端略轻，模拟拨片扫过力度的自然过渡
+      const profile = 0.6 + 0.14 * (1 - Math.abs(index - center) / (center + 1))
       this.pluck(midi, {
-        velocity: 0.62 + Math.random() * 0.16,
+        velocity: profile,
         stringNumber,
         delay: baseDelay + index * step,
+        detuneCents: detune,
       })
     })
+  }
+
+  /** 扫弦刮弦噪声：一段带通白噪，频率随扫弦方向横扫，模拟指甲/拨片划过琴弦 */
+  private scrape(direction: 'up' | 'down', when: number, dur: number): void {
+    if (!this.ctx || !this.master || this._muted) return
+    const ctx = this.ctx
+    const t = when
+    const len = Math.max(0.05, Math.min(0.16, dur + 0.04))
+    const src = ctx.createBufferSource()
+    src.buffer = this.noiseBuffer(len)
+    const bp = ctx.createBiquadFilter()
+    bp.type = 'bandpass'
+    bp.frequency.setValueAtTime(direction === 'down' ? 900 : 2600, t)
+    bp.frequency.exponentialRampToValueAtTime(direction === 'down' ? 2600 : 900, t + len)
+    bp.Q.value = 0.8
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.exponentialRampToValueAtTime(0.06, t + 0.006)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + len)
+    src.connect(bp)
+    bp.connect(g)
+    g.connect(this.master)
+    src.start(t)
+    src.stop(t + len + 0.02)
   }
 
   thud(): void {
@@ -588,6 +630,104 @@ export class GuitarAudioEngine {
     g.connect(this.master)
     src.start(t)
     src.stop(t + 0.06)
+  }
+
+  /** 轻军鼓（ghost note）：比正拍军鼓弱很多，用于 funk / latin 的反拍点缀 */
+  ghost(at?: number): void {
+    void this.unlock()
+    if (!this.ctx || !this.master || this._muted) return
+    const ctx = this.ctx
+    const t = at ?? ctx.currentTime
+    const src = ctx.createBufferSource()
+    src.buffer = this.noiseBuffer(0.12)
+    const hp = ctx.createBiquadFilter()
+    hp.type = 'highpass'
+    hp.frequency.value = 1700
+    const ng = ctx.createGain()
+    ng.gain.setValueAtTime(0.0001, t)
+    ng.gain.exponentialRampToValueAtTime(0.11, t + 0.004)
+    ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.1)
+    src.connect(hp)
+    hp.connect(ng)
+    ng.connect(this.master)
+    src.start(t)
+    src.stop(t + 0.12)
+  }
+
+  /** 长镲（open hi-hat）：比闭镲拖尾长，用于 latin 的沙锤感 */
+  openHat(at?: number): void {
+    void this.unlock()
+    if (!this.ctx || !this.master || this._muted) return
+    const ctx = this.ctx
+    const t = at ?? ctx.currentTime
+    const src = ctx.createBufferSource()
+    src.buffer = this.noiseBuffer(0.3)
+    const hp = ctx.createBiquadFilter()
+    hp.type = 'highpass'
+    hp.frequency.value = 6500
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.exponentialRampToValueAtTime(0.1, t + 0.003)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.26)
+    src.connect(hp)
+    hp.connect(g)
+    g.connect(this.master)
+    src.start(t)
+    src.stop(t + 0.3)
+  }
+
+  /** 边击（rimshot）：短促高频「嗒」，用于 bossa / samba 的调性重音 */
+  rim(at?: number): void {
+    void this.unlock()
+    if (!this.ctx || !this.master || this._muted) return
+    const ctx = this.ctx
+    const t = at ?? ctx.currentTime
+    const osc = ctx.createOscillator()
+    osc.type = 'triangle'
+    osc.frequency.setValueAtTime(1800, t)
+    osc.frequency.exponentialRampToValueAtTime(1200, t + 0.03)
+    const bp = ctx.createBiquadFilter()
+    bp.type = 'bandpass'
+    bp.frequency.value = 1900
+    bp.Q.value = 2
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.exponentialRampToValueAtTime(0.14, t + 0.002)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05)
+    osc.connect(bp)
+    bp.connect(g)
+    g.connect(this.master)
+    osc.start(t)
+    osc.stop(t + 0.06)
+  }
+
+  /**
+   * 播放一段 groove（供耳朵训练的「听鼓点」模式）。按音频时钟排程若干小节，
+   * 每个步按 kick / snare / ghost / openHat / rim / hat 触发对应鼓色。
+   * @param steps 一小节的步序列（见 lib/rhythm.ts 的 RhythmStep）
+   * @param subdiv 每拍步数
+   * @param bpm 速度
+   * @param bars 播放小节数
+   * @param swing 是否摇摆（反拍后拖）
+   */
+  playGroove(steps: RhythmStep[], subdiv: number, bpm: number, bars = 2, swing = false): void {
+    void this.unlock()
+    if (!this.ctx || !this.master || this._muted) return
+    const ctx = this.ctx
+    const stepDur = 60 / bpm / subdiv
+    const total = steps.length * bars
+    const start = ctx.currentTime + 0.08
+    for (let i = 0; i < total; i++) {
+      const s = steps[i % steps.length]
+      const swingOffset = swing && i % subdiv !== 0 ? stepDur / 3 : 0
+      const t = start + i * stepDur + swingOffset
+      if (s.kick) this.kick(t)
+      if (s.snare) this.snare(t)
+      if (s.ghost) this.ghost(t)
+      if (s.openHat) this.openHat(t)
+      if (s.rim) this.rim(t)
+      if (s.hat) this.hat(t)
+    }
   }
 
   silence(): void {

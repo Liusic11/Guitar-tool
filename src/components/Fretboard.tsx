@@ -41,7 +41,7 @@ const SPAN_RATIO = 0.815 // 弦跨度占指板宽度的比例
 /** 弦的绘制粗细（SVG 单位），6 弦 → 1 弦 */
 const STRING_WIDTHS = [5.0, 4.1, 3.3, 2.6, 1.9, 1.5]
 
-export type HighlightKind = 'answer' | 'secondary' | 'done' | 'hit' | 'miss' | 'ghost' | 'reference'
+export type HighlightKind = 'answer' | 'secondary' | 'accent' | 'done' | 'hit' | 'miss' | 'ghost' | 'reference'
 
 export interface Highlight {
   string: number

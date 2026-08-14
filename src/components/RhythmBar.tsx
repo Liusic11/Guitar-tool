@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
-import { getRhythm, type RhythmPreset } from '../lib/rhythm'
+import { getGroove, type RhythmPreset } from '../lib/rhythm'
 import { useRhythmState } from '../lib/rhythmStore'
 import { audioEngine } from '../lib/audio'
 
 export function RhythmBar({ onBeat }: { onBeat?: (beatIndex: number) => void }) {
-  const { bpm, subdiv, kit } = useRhythmState()
+  const { bpm, grooveId } = useRhythmState()
   const [playing, setPlaying] = useState(false)
   const [playStep, setPlayStep] = useState(-1)
 
-  const preset = getRhythm(subdiv, kit)
+  const preset = getGroove(grooveId)
   const beatsPerBar = preset.steps.length / preset.subdiv
 
   // 实时读取，避免拖动时重启调度器（BPM 平滑，preset 切换则干净重启）
@@ -36,13 +36,18 @@ export function RhythmBar({ onBeat }: { onBeat?: (beatIndex: number) => void }) 
       while (nextTime < audioEngine.currentTime + ahead) {
         const s = step
         const spec = p.steps[s]
-        const tPlay = nextTime
+        // swing：把反拍（非拍头）往后拖成「长-短」三连音感
+        const swingOffset = p.swing && s % p.subdiv !== 0 ? stepDur / 3 : 0
+        const tPlay = nextTime + swingOffset
         if (p.kit === 'click') {
           if (spec.accent) audioEngine.click(tPlay, true)
           else if (spec.tick) audioEngine.click(tPlay, false)
         } else {
           if (spec.kick) audioEngine.kick(tPlay)
           if (spec.snare) audioEngine.snare(tPlay)
+          if (spec.ghost) audioEngine.ghost(tPlay)
+          if (spec.openHat) audioEngine.openHat(tPlay)
+          if (spec.rim) audioEngine.rim(tPlay)
           if (spec.hat) audioEngine.hat(tPlay)
         }
         const visualDelay = Math.max(0, (tPlay - audioEngine.currentTime) * 1000)
@@ -63,7 +68,7 @@ export function RhythmBar({ onBeat }: { onBeat?: (beatIndex: number) => void }) 
       window.clearInterval(interval)
       timers.forEach((t) => window.clearTimeout(t))
     }
-  }, [playing, subdiv, kit])
+  }, [playing, grooveId])
 
   const currentBeat = playStep >= 0 ? Math.floor(playStep / preset.subdiv) : -1
 
@@ -114,6 +119,9 @@ export function RhythmBar({ onBeat }: { onBeat?: (beatIndex: number) => void }) 
                   'rhythm-bar__step',
                   spec.kick ? 'is-kick' : '',
                   spec.snare ? 'is-snare' : '',
+                  spec.ghost ? 'is-ghost' : '',
+                  spec.openHat ? 'is-openhat' : '',
+                  spec.rim ? 'is-rim' : '',
                   spec.hat ? 'is-hat' : '',
                   spec.accent ? 'is-accent' : '',
                   spec.tick ? 'is-tick' : '',

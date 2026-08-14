@@ -1,39 +1,51 @@
 /**
  * 节奏共享状态
  * ─────────────────────────────────────────────
- * 把「速度 BPM」「时值 subdiv」「音色 kit」提升为全局共享状态：
+ * 把「速度 BPM」与「当前 groove（律动 id）」提升为全局共享状态：
  *   - 设置抽屉（SettingsDrawer）负责改它们
- *   - 底部节奏条（RhythmBar）/ 和弦切换训练（ChordChanges）读它们并真实发声
+ *   - 底部节奏条（RhythmBar）/ 和弦切换训练（ChordChanges）/ Jam 读它们并真实发声
  * 两边都看到同一份，切换模块也不丢；并且持久化到 localStorage。
  *
- * 节奏由「时值 × 音色」两个维度决定（见 lib/rhythm.ts），不再是单一预设 id。
+ * groove 是节奏的「唯一真相源」：所有模块消费同一个 grooveId，鼓点真正有多种敲法，
+ * 而不再是千篇一律的动次打次。详见 lib/rhythm.ts 的 GROOVES。
  */
 
 import { useSyncExternalStore } from 'react'
 import type { RhythmKit, RhythmSubdivision } from './rhythm'
+import { getGroove } from './rhythm'
 
 export interface RhythmState {
   bpm: number
-  subdiv: RhythmSubdivision
-  kit: RhythmKit
+  grooveId: string
 }
 
 const KEY = 'fretboard-rhythm'
-const DEFAULT: RhythmState = { bpm: 90, subdiv: 'e', kit: 'drums' }
+const DEFAULT: RhythmState = { bpm: 90, grooveId: 'straight-8' }
 
-/** 旧版 localStorage 里的 presetId → 新 (subdiv, kit)，保证老用户设置不丢 */
-const LEGACY: Record<string, { subdiv: RhythmSubdivision; kit: RhythmKit }> = {
-  'click-44': { subdiv: 'q', kit: 'click' },
-  'click-8': { subdiv: 'e', kit: 'click' },
-  'drums-44': { subdiv: 'e', kit: 'drums' },
-  'click-triplet': { subdiv: 't', kit: 'click' },
-  'drums-triplet': { subdiv: 't', kit: 'drums' },
-  'drums-funk': { subdiv: 's', kit: 'drums' },
-  'drums-bossa': { subdiv: 'e', kit: 'drums' },
-  'drums-samba': { subdiv: 's', kit: 'drums' },
-  'drums-reggae': { subdiv: 'e', kit: 'drums' },
-  'drums-straight16': { subdiv: 's', kit: 'drums' },
-  'drums-halftime': { subdiv: 'e', kit: 'drums' },
+/** 旧版 localStorage 字段 → 新 grooveId，保证老用户设置不丢 */
+const LEGACY_PRESET: Record<string, string> = {
+  'click-44': 'click-4',
+  'click-8': 'click-8',
+  'drums-44': 'straight-8',
+  'click-triplet': 'click-8',
+  'drums-triplet': 'straight-8',
+  'drums-funk': 'funk-16',
+  'drums-bossa': 'bossa',
+  'drums-samba': 'samba',
+  'drums-reggae': 'reggae',
+  'drums-straight16': 'straight-16',
+  'drums-halftime': 'halftime',
+}
+
+const LEGACY_SUBDIV_KIT: Record<string, string> = {
+  'q-click': 'click-4',
+  'e-click': 'click-8',
+  's-click': 'click-8',
+  't-click': 'click-8',
+  'q-drums': 'straight-8',
+  'e-drums': 'straight-8',
+  's-drums': 'straight-16',
+  't-drums': 'straight-8',
 }
 
 function clampBpm(v: number): number {
@@ -45,15 +57,20 @@ function load(): RhythmState {
   try {
     const raw = localStorage.getItem(KEY)
     if (raw) {
-      const p = JSON.parse(raw) as Partial<RhythmState> & { presetId?: string }
-      if (p.presetId && LEGACY[p.presetId]) {
-        return { bpm: clampBpm(p.bpm ?? DEFAULT.bpm), ...LEGACY[p.presetId] }
+      const p = JSON.parse(raw) as Partial<RhythmState> & {
+        presetId?: string
+        subdiv?: RhythmSubdivision
+        kit?: RhythmKit
       }
-      const subdiv = (['q', 'e', 's', 't'] as const).includes(p.subdiv as RhythmSubdivision)
-        ? (p.subdiv as RhythmSubdivision)
-        : DEFAULT.subdiv
-      const kit = p.kit === 'click' || p.kit === 'drums' ? p.kit : DEFAULT.kit
-      return { bpm: clampBpm(p.bpm ?? DEFAULT.bpm), subdiv, kit }
+      if (p.presetId && LEGACY_PRESET[p.presetId]) {
+        return { bpm: clampBpm(p.bpm ?? DEFAULT.bpm), grooveId: LEGACY_PRESET[p.presetId] }
+      }
+      if (p.grooveId && getGroove(p.grooveId)) {
+        return { bpm: clampBpm(p.bpm ?? DEFAULT.bpm), grooveId: p.grooveId }
+      }
+      if (p.subdiv && p.kit && LEGACY_SUBDIV_KIT[`${p.subdiv}-${p.kit}`]) {
+        return { bpm: clampBpm(p.bpm ?? DEFAULT.bpm), grooveId: LEGACY_SUBDIV_KIT[`${p.subdiv}-${p.kit}`] }
+      }
     }
   } catch {
     /* 忽略损坏的本地数据 */
@@ -83,13 +100,9 @@ export const rhythmStore = {
     persist()
     emit()
   },
-  setSubdiv(id: RhythmSubdivision): void {
-    state = { ...state, subdiv: id }
-    persist()
-    emit()
-  },
-  setKit(id: RhythmKit): void {
-    state = { ...state, kit: id }
+  setGroove(id: string): void {
+    if (!getGroove(id)) return
+    state = { ...state, grooveId: id }
     persist()
     emit()
   },

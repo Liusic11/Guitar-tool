@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Fretboard, type Highlight } from './Fretboard'
 import { RhythmBar } from './RhythmBar'
 import { ScaleConnection } from './ScaleConnection'
+import { ConceptCheatSheet } from './ConceptCheatSheet'
 import { SCALES, scalePositions, scaleBoxes, scalePattern, PATTERNS, type ScaleDef, type ScaleNote, type PatternId } from '../lib/scales'
 import { audioEngine } from '../lib/audio'
 import { letterOf, type Tuning, type PitchClass } from '../lib/music'
@@ -52,7 +53,7 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
   )
 
   const boxes = useMemo(
-    () => scaleBoxes(tuning, rootPc, def.formula, 15),
+    () => scaleBoxes(tuning, rootPc, def.formula, 15, def.id),
     [tuning, rootPc, def],
   )
 
@@ -286,6 +287,60 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
         ear: `大调的明亮底色，加上 ♭7 的一点「悬」。在属七和弦上 solo 时，它是最自然的选择。`,
         songs: `Guns N' Roses《Sweet Child O' Mine》的 riff、Grateful Dead 很多 solo。听起来「亮但有点野」。`,
         box: `重点听 ♭7 这颗音。试着 1 → 2 → 3 → 4 → 5 → 6 → ♭7 → 1，感受它怎么「回家」。`,
+      },
+      phrygian: {
+        why: `${root} 弗利几亚 = 自然小调把 2 级也压低成 ♭2。那个 ♭2 和主音只差半音，制造一股「异域、凶狠、悬疑」的暗色——弗拉门戈扫弦和金属 riff 的魂就是它。`,
+        ear: `弹到 ♭2 时，注意它几乎「贴」着主音，那股压迫感就是弗利几亚的标志。对比一下自然小调的 2 级，差别一眼（耳）就懂。`,
+        songs: `弗拉门戈几乎都用 E 弗利几亚（把 E 小调的根音挪到 E 的 ♭2 所在）；金属 riff 也爱它。听西班牙 / 暗潮金属就知道那味。`,
+        box: `这个 5 品窗口里，先找到那个 ♭2（紧贴主音上方半音的音），来回弹 ♭2 → 根音，体会「一步跨上去又跌回来」的暗狠。`,
+      },
+      lydian: {
+        why: `${root} 利底亚 = 自然大调把 4 级抬成 #4。那个 #4 悬在半空，制造「飘、梦幻、外星」的亮色——fusion / 前卫金属 / 配乐最爱。`,
+        ear: `重点听 #4：它比普通大调的 4 级高半音，听感「亮得发飘」。和 Lydian 大七和弦（maj7）配在一起最对味。`,
+        songs: `Dream Theater 类前卫金属、fusion、电影配乐的「希望感大调」多用它。`,
+        box: `在这个窗口里，找到 #4（比 4 级高半音），弹 3 → #4 → 5，感受那个「悬浮不落地」的张力。`,
+      },
+      locrian: {
+        why: `${root} 洛克里亚 = 自然小调把 2、5 级都压低（♭2·♭5）。它是七个调式里唯一主和弦是减和弦的，没有纯五度「锚」，所以一直在「要往哪去」、绝不落地。`,
+        ear: `洛克里亚几乎没有「稳定感」——弹下去你会想赶紧离开它。这正是它作为 m7♭5 本命音阶的价值：永远在悬疑里。`,
+        songs: `几乎不拿它写歌，但它是 jazz 标准曲 ii–V–I 里 ii 级（m7♭5）的本命音阶。`,
+        box: `这个窗口里，先听主和弦（减的）有多「悬」，再找到 ♭2 和 ♭5——整条音阶都在制造紧张，别想把它当「家」。`,
+      },
+      harmonicMinor: {
+        why: `${root} 和声小调 = 自然小调把 7 级抬高成 #7。那个 #7 与主音只差半音，制造一股「拼命想解决回主音」的张力——古典 / neoclassical 小调 solo 的暗色魂。`,
+        ear: `重点听 #7：它紧贴主音上方半音，一股「急着回家」的拉力。对比自然小调的 ♭7，你就懂为什么它更「古典 / 中世纪」。`,
+        songs: `Yngwie 类 neoclassical、古典、金属 riff 常用。听那种「暗潮又凶」的小调独奏。`,
+        box: `这个窗口里，找到 #7（紧贴主音上方半音），弹 ♭6 → 7(主音) → #7，感受 #7 想冲回主音的推力。`,
+      },
+      melodicMinor: {
+        why: `${root} 旋律小调 = 自然小调把 6、7 级都抬高。暗底里带一点爵士的亮，是 m7♭5 / m(maj7) 的母音阶——ii–V–I 的 ii 级上 solo 比自然小调顺太多。`,
+        ear: `它的 6、7 都亮，所以不像自然小调那么悲，反而有点「现代、爵士」的暗带亮。和 locrian / 和声小调对比着听最清楚。`,
+        songs: `jazz（jazz minor）、fusion、金属。听那种「小调但通透」的独奏。`,
+        box: `这个窗口里，找到抬亮的 6、7 级，弹 ♭3 → 4 → 5 → 6 → 7，体会「暗里透亮」的流动感。`,
+      },
+      diminished: {
+        why: `${root} 减音阶 = 半音、全音交替（whole-half），8 个音，全对称。它和小调减七和弦(dim7)完美咬合——一个把位 = 4 个不同根的减七，是离调 / 悬疑的踏板。`,
+        ear: `整条音阶听起来「诡异、紧张、悬」，没有稳定点。别想把它当调，它是一块「去往别处的踏板」。`,
+        songs: `古典 / 爵士的过渡桥、恐怖悬疑配乐。`,
+        box: `这个窗口里，把相邻音级当成「踏板」来滑——它天生就是用来制造离调张力的，不是拿来 solo 的「家」。`,
+      },
+      wholeTone: {
+        why: `${root} 全音阶 = 只由大二度堆叠，没有小二度、没有解决感，听起来「悬在半空、上不去下不来」。它和增和弦(aug)是绝配。`,
+        ear: `整条音阶「飘」——没有一个音想落地。对比一下大调音阶的 3→4、7→1 半音台阶，你就懂全音阶为什么「无重力」。`,
+        songs: `印象派（德彪西）、fusion、悬疑配乐的漂浮感。`,
+        box: `这个窗口里，顺着大二度一格一格往上爬，体会「台阶一样高、永远不落地」的悬浮。`,
+      },
+      bebopDominant: {
+        why: `${root} Bebop 属 = 混合利底亚 + 自然 7，8 个音。多出来的 7 音是「经过音」，让旋律在 swing 的 8 分里把和弦音钉在强拍——属七上的爵士标配。`,
+        ear: `它比 Mixolydian 多一个自然 7，听感「更满、更流动」。在属七上 solo 时，这个 7 音是连到你下一个乐句的关键。`,
+        songs: `Charlie Parker 类 bebop、swing 标准曲的属七 solo。`,
+        box: `这个窗口里，找到那个额外的自然 7（在 ♭7 上方半音），试着把它放在弱拍、把和弦音放在强拍，体会 bebop 的「落点」。`,
+      },
+      bebopMajor: {
+        why: `${root} Bebop 大调 = 大调 + 一个 ♭6 经过音，8 个音。和 bebop 属同理，多出来的音让旋律在 swing 里把和弦音落在强拍——大调 / maj7 上的爵士标配。`,
+        ear: `它比大调音阶多一个 ♭6，听感「更顺滑地流动」。在 maj7 上 solo 时找找那个 ♭6 的位置。`,
+        songs: `swing / bebop 里的大调 solo。`,
+        box: `这个窗口里，找到 ♭6（在 5 和 6 之间），把它当「经过音」滑过，和弦音落在强拍——这就是 bebop 大调的流动感。`,
       },
     }
 
@@ -630,6 +685,11 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
             </aside>
 
             <ScaleConnection rootPc={rootPc} scaleId={scaleId} />
+
+            <ConceptCheatSheet
+              filter={['basic', 'scale']}
+              subtitle="音阶 / 调式页常蹦出来的黑话，老师给你翻译成大白话。看不懂时往下翻一翻。"
+            />
 
             <button className="btn btn--primary scale-demo" onClick={playDemo} type="button">
               ▶ 演示这个把位（边播边高亮每个音）

@@ -19,6 +19,12 @@ interface SharedState {
   scaleId: string | null
   /** 当前共享和弦类型 id（如 'dom7'），用于音阶页 → 和弦页跳转 */
   chordTypeId: string | null
+  /** 全局父调根音（pitch class 0..11），Jam 写、其他模块读；null = 尚未设定 */
+  keyPc: number | null
+  /** 全局父调性质：大调 / 小调；null = 尚未设定 */
+  keyQuality: 'major' | 'minor' | null
+  /** 耳朵训练「去 Jam 页练这个」写入的目标进行 id；Jam 挂载时消费 */
+  jamPresetId: string | null
   /** 跨模块导航请求；消费后置空 */
   navRequest: { view: ViewKey; token: number } | null
 }
@@ -30,6 +36,9 @@ function load(): SharedState {
     rootPc: null,
     scaleId: null,
     chordTypeId: null,
+    keyPc: null,
+    keyQuality: null,
+    jamPresetId: null,
     navRequest: null,
   }
   try {
@@ -39,6 +48,9 @@ function load(): SharedState {
       if (typeof p.rootPc === 'number') base.rootPc = p.rootPc
       if (typeof p.scaleId === 'string') base.scaleId = p.scaleId
       if (typeof p.chordTypeId === 'string') base.chordTypeId = p.chordTypeId
+      if (typeof p.keyPc === 'number') base.keyPc = p.keyPc
+      if (p.keyQuality === 'major' || p.keyQuality === 'minor') base.keyQuality = p.keyQuality
+      if (typeof p.jamPresetId === 'string') base.jamPresetId = p.jamPresetId
     }
   } catch {
     /* localStorage 不可用（如 SSR / 隐私模式）时静默回退 */
@@ -53,7 +65,14 @@ function persist() {
   try {
     localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ rootPc: state.rootPc, scaleId: state.scaleId, chordTypeId: state.chordTypeId }),
+      JSON.stringify({
+        rootPc: state.rootPc,
+        scaleId: state.scaleId,
+        chordTypeId: state.chordTypeId,
+        keyPc: state.keyPc,
+        keyQuality: state.keyQuality,
+        jamPresetId: state.jamPresetId,
+      }),
     )
   } catch {
     /* 忽略写入失败 */
@@ -88,6 +107,18 @@ export const sessionStore = {
     state = { ...state, chordTypeId: typeId }
     emit()
   },
+  /** 写入全局父调（Jam 进入即写，和弦/音阶/耳朵页读它接上同一条调性线） */
+  setKey(pc: number, quality: 'major' | 'minor') {
+    if (state.keyPc === pc && state.keyQuality === quality) return
+    state = { ...state, keyPc: pc, keyQuality: quality }
+    emit()
+  },
+  /** 耳朵训练「去 Jam 页练这个」：写入目标进行 id，Jam 挂载时消费 */
+  setJamPreset(id: string) {
+    if (state.jamPresetId === id) return
+    state = { ...state, jamPresetId: id }
+    emit()
+  },
   /** 请求 App 切换到某个视图（同时已通过 setRoot/setScale/setChord 写好目标状态） */
   requestNav(view: ViewKey) {
     state = { ...state, navRequest: { view, token: Date.now() } }
@@ -120,4 +151,14 @@ export function useSharedScale(): [string | null, (id: string) => void] {
 export function useSharedChord(): [string | null, (id: string) => void] {
   const s = useSyncExternalStore(sessionStore.subscribe, sessionStore.get)
   return [s.chordTypeId, sessionStore.setChord]
+}
+
+/** 共享父调：[keyPc, keyQuality, 写入函数] */
+export function useSharedKey(): [
+  number | null,
+  'major' | 'minor' | null,
+  (pc: number, q: 'major' | 'minor') => void,
+] {
+  const s = useSyncExternalStore(sessionStore.subscribe, sessionStore.get)
+  return [s.keyPc, s.keyQuality, sessionStore.setKey]
 }

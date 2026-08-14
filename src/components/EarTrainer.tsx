@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { audioEngine } from '../lib/audio'
 import {
   CHORD_TYPES,
@@ -12,11 +12,21 @@ import {
   type ScaleDef,
   type ScaleNote,
 } from '../lib/scales'
-import { midiAt, pitchClassOf, type PitchClass, type Tuning } from '../lib/music'
+import { midiAt, type PitchClass, type Tuning } from '../lib/music'
 import { sessionStore } from '../lib/session'
+import { getGroove, GROOVES } from '../lib/rhythm'
+import { useRhythmState } from '../lib/rhythmStore'
+import {
+  JAM_PRESETS,
+  type JamPreset,
+  typeOf,
+  progressionKeyLabel,
+  scaleLabel,
+} from '../lib/progressions'
 import { IntervalShapes } from './IntervalShapes'
 import { ChordDiagram } from './ChordDiagram'
 import { Fretboard } from './Fretboard'
+import { ConceptCheatSheet } from './ConceptCheatSheet'
 
 /* ──────────────────────────── 数据：音程 ──────────────────────────── */
 interface IntervalDef {
@@ -75,8 +85,35 @@ type EarQuestion =
       options: EarOption[]
       explain: string
     }
+  | {
+      kind: 'groove'
+      grooveId: string
+      answerId: string
+      answerLabel: string
+      options: EarOption[]
+      explain: string
+    }
+  | {
+      kind: 'progression'
+      presetId: string
+      answerId: string
+      answerLabel: string
+      options: EarOption[]
+      explain: string
+      keyLabel: string
+    }
 
-type EarMode = 'interval' | 'chord' | 'scale'
+type EarMode = 'interval' | 'chord' | 'scale' | 'groove' | 'progression'
+
+/** 耳朵训练「听进行」用的候选父调池（答案 + 干扰项都从这里取） */
+const KEY_POOL: { pc: number; q: 'major' | 'minor'; label: string }[] = [
+  { pc: 0, q: 'major', label: 'C 大调 / A 小调' },
+  { pc: 5, q: 'major', label: 'F 大调 / D 小调' },
+  { pc: 7, q: 'major', label: 'G 大调 / E 小调' },
+  { pc: 2, q: 'major', label: 'D 大调 / B 小调' },
+  { pc: 9, q: 'minor', label: 'A 小调 / C 大调' },
+  { pc: 4, q: 'minor', label: 'E 小调 / G 大调' },
+]
 
 type Verdict = 'none' | 'correct' | 'wrong'
 
@@ -106,6 +143,11 @@ export function EarTrainer({ tuning }: { tuning: Tuning }) {
   const [verdict, setVerdict] = useState<Verdict>('none')
   const [pickedId, setPickedId] = useState<string | null>(null)
   const [stats, setStats] = useState({ answered: 0, correct: 0, streak: 0 })
+
+  // 耳朵训练「听鼓点 / 听进行」复用的练习速度（与节奏条同一来源，听感和练习一致）
+  const { bpm } = useRhythmState()
+  const bpmRef = useRef(bpm)
+  bpmRef.current = bpm
 
   const genQuestion = useCallback(
     (m: EarMode): EarQuestion => {
@@ -138,20 +180,52 @@ export function EarTrainer({ tuning }: { tuning: Tuning }) {
           explain: `${t.color} · ${t.ear}`,
         }
       }
-      // scale
-      const s: ScaleDef = SCALES[Math.floor(Math.random() * SCALES.length)]
-      const rootPc = (Math.floor(Math.random() * 12) as PitchClass)
-      const run = scaleRun(tuning, rootPc, s.formula)
-      return {
-        kind: 'scale',
-        rootPc,
-        run,
-        answerId: s.id,
-        answerLabel: s.label,
-        options: shuffle(SCALES.map((x) => ({ id: x.id, label: x.label }))),
-        explain: `${s.color} · ${s.usage}`,
+      if (m === 'scale') {
+        // scale
+        const s: ScaleDef = SCALES[Math.floor(Math.random() * SCALES.length)]
+        const rootPc = Math.floor(Math.random() * 12) as PitchClass
+        const run = scaleRun(tuning, rootPc, s.formula)
+        return {
+          kind: 'scale',
+          rootPc,
+          run,
+          answerId: s.id,
+          answerLabel: s.label,
+          options: shuffle(SCALES.map((x) => ({ id: x.id, label: x.label }))),
+          explain: `${s.color} · ${s.usage}`,
+        }
       }
-    },
+    if (m === 'groove') {
+      // 只从「鼓」类 groove 里抽（木鱼 click 不算律动）
+      const drums = GROOVES.filter((g) => g.kit === 'drums')
+      const g = drums[Math.floor(Math.random() * drums.length)]
+      const distractors = shuffle(drums.filter((d) => d.id !== g.id)).slice(0, 3)
+      return {
+        kind: 'groove',
+        grooveId: g.id,
+        answerId: g.id,
+        answerLabel: g.label,
+        options: shuffle([g, ...distractors]).map((d) => ({ id: d.id, label: d.label })),
+        explain: `风格：${g.style}。${g.tip}`,
+      }
+    }
+    // progression：听一段和弦进行，猜它落在哪个父调
+    const p: JamPreset = JAM_PRESETS[Math.floor(Math.random() * JAM_PRESETS.length)]
+    const correct = KEY_POOL.find((k) => k.pc === p.keyPc && k.q === p.keyQuality) ?? KEY_POOL[0]
+    const distractors = shuffle(KEY_POOL.filter((k) => k !== correct)).slice(0, 3)
+    const options = shuffle([correct, ...distractors]).map((k) => ({ id: k.label, label: k.label }))
+    return {
+      kind: 'progression',
+      presetId: p.id,
+      answerId: correct.label,
+      answerLabel: correct.label,
+      options,
+      explain: `${p.why} 听感上，它的「家」是 ${progressionKeyLabel(p)}；整段 solo 用 ${scaleLabel(
+        p.globalScale.scaleId,
+      )}（根音 ${ROOT_LABELS[p.globalScale.rootPc]}）。`,
+      keyLabel: progressionKeyLabel(p),
+    }
+  },
     [tuning],
   )
 
@@ -170,10 +244,27 @@ export function EarTrainer({ tuning }: { tuning: Tuning }) {
       audioEngine.pluck(question.secondMidi, { velocity: 0.9, delay: 0.55 })
     } else if (question.kind === 'chord') {
       audioEngine.strum(question.notes, 0.02)
-    } else {
+    } else if (question.kind === 'scale') {
       question.run.forEach((n, i) => audioEngine.pluck(n.midi, { velocity: 0.85, delay: i * 0.3 }))
+    } else if (question.kind === 'groove') {
+      const g = getGroove(question.grooveId)
+      audioEngine.playGroove(g.steps, g.subdiv, bpmRef.current, 2, !!g.swing)
+    } else {
+      // progression：把整段进行扫两遍（每和弦占一拍），听「家」落在哪个调
+      const p = JAM_PRESETS.find((x) => x.id === question.presetId) ?? JAM_PRESETS[0]
+      const beatDur = 60 / Math.max(50, bpmRef.current)
+      const start = audioEngine.currentTime + 0.1
+      const loops = 2
+      for (let loop = 0; loop < loops; loop++) {
+        p.chords.forEach((c, i) => {
+          const v = voiceChord(c.rootPc, typeOf(c.typeId), tuning)
+          const notes = v.notes.map((n) => (n.muted ? null : midiAt(tuning, n.string, n.fret)))
+          const when = start + loop * p.chords.length * beatDur + i * beatDur
+          audioEngine.strum(notes, 0.009, when)
+        })
+      }
     }
-  }, [question])
+  }, [question, tuning])
 
   // 新题自动播一次（需先有一次用户交互解锁音频，点「下一题」即满足）
   useEffect(() => {
@@ -202,14 +293,21 @@ export function EarTrainer({ tuning }: { tuning: Tuning }) {
     setPickedId(null)
   }, [mode, genQuestion])
 
-  /** 揭示答案后，把「听到的根音」写进共享状态——让和弦 / 音阶页接上同一把钥匙 */
+  /** 揭示答案后，把「听到的」写进共享状态——让和弦 / 音阶 / Jam 页接上同一把钥匙 */
   useEffect(() => {
     if (!question || verdict === 'none') return
     if (question.kind === 'interval') {
       sessionStore.setRoot(((question.rootMidi % 12) + 12) % 12)
-    } else {
+    } else if (question.kind === 'chord' || question.kind === 'scale') {
       sessionStore.setRoot(question.rootPc)
+    } else if (question.kind === 'progression') {
+      const p = JAM_PRESETS.find((x) => x.id === question.presetId) ?? JAM_PRESETS[0]
+      // 把父调 + 父音阶写进共享上下文，去 Jam / 音阶页直接接上这条调性线
+      sessionStore.setKey(p.keyPc, p.keyQuality)
+      sessionStore.setRoot(p.globalScale.rootPc)
+      sessionStore.setScale(p.globalScale.scaleId)
     }
+    // groove 没有单一音高目标，不写共享根音
   }, [question, verdict])
 
   /** 去和弦页弹「这个」：写入根音 + 和弦类型，再请求跳转 */
@@ -226,6 +324,17 @@ export function EarTrainer({ tuning }: { tuning: Tuning }) {
     sessionStore.setRoot(question.rootPc)
     sessionStore.setScale(question.answerId)
     sessionStore.requestNav('scales')
+  }, [question])
+
+  /** 去 Jam 页练「这个」进行：写入父调 + 父音阶 + 目标进行，再请求跳转 */
+  const goJam = useCallback(() => {
+    if (question?.kind !== 'progression') return
+    const p = JAM_PRESETS.find((x) => x.id === question.presetId) ?? JAM_PRESETS[0]
+    sessionStore.setRoot(p.globalScale.rootPc)
+    sessionStore.setScale(p.globalScale.scaleId)
+    sessionStore.setKey(p.keyPc, p.keyQuality)
+    sessionStore.setJamPreset(p.id)
+    sessionStore.requestNav('jam')
   }, [question])
 
   // 快捷键：空格再听，回车下一题（仅 ear 视图内）
@@ -247,9 +356,21 @@ export function EarTrainer({ tuning }: { tuning: Tuning }) {
 
   const accuracy = stats.answered > 0 ? Math.round((stats.correct / stats.answered) * 100) : null
   const modeLabel = useMemo(
-    () => ({ interval: '音程辨识', chord: '和弦辨识', scale: '音阶听辨' }[mode]),
+    () =>
+      ({
+        interval: '音程辨识',
+        chord: '和弦辨识',
+        scale: '音阶听辨',
+        groove: '鼓点辨识',
+        progression: '进行辨识',
+      }[mode]),
     [mode],
   )
+  const promptText = useMemo(() => {
+    if (mode === 'groove') return '🎧 听这段鼓点——它是什么律动？点下面的选项猜一猜。'
+    if (mode === 'progression') return '🎧 听这段和弦进行——它落在哪个调？点下面的选项猜一猜。'
+    return `🎧 听好了——这是${modeLabel}？点下面的选项猜一猜。`
+  }, [mode, modeLabel])
 
   /** 音阶揭示后：把整条音阶铺在指板上，根音（橙色）高亮——一眼看到「这个音阶长在哪」 */
   const scaleRevealHighlights = useMemo(() => {
@@ -271,7 +392,7 @@ export function EarTrainer({ tuning }: { tuning: Tuning }) {
           <div className="scale-controls">
             <div className="field field--practice">
               <label className="field__label">耳朵训练</label>
-              <div className="segmented" role="group" aria-label="训练类型">
+              <div className="segmented segmented--wrap" role="group" aria-label="训练类型">
                 <button
                   className="segmented__item"
                   aria-pressed={mode === 'interval'}
@@ -292,6 +413,20 @@ export function EarTrainer({ tuning }: { tuning: Tuning }) {
                   onClick={() => setMode('scale')}
                 >
                   音阶
+                </button>
+                <button
+                  className="segmented__item"
+                  aria-pressed={mode === 'groove'}
+                  onClick={() => setMode('groove')}
+                >
+                  鼓点
+                </button>
+                <button
+                  className="segmented__item"
+                  aria-pressed={mode === 'progression'}
+                  onClick={() => setMode('progression')}
+                >
+                  进行
                 </button>
               </div>
             </div>
@@ -318,7 +453,7 @@ export function EarTrainer({ tuning }: { tuning: Tuning }) {
           <div className="ear-layout">
             {/* 左：题目 + 播放 + 选项 */}
             <section className="ear-figure" aria-label="听音答题">
-              <div className="ear-prompt">🎧 听好了——这是{modeLabel}？点下面的选项猜一猜。</div>
+              <div className="ear-prompt">{promptText}</div>
 
               <button className="ear-play" onClick={playQuestion} type="button">
                 ▶ 再听一遍
@@ -417,6 +552,36 @@ export function EarTrainer({ tuning }: { tuning: Tuning }) {
                   </div>
                 </div>
               )}
+            {/* 鼓点揭示后：解析这段律动「性格」在哪 */}
+            {verdict !== 'none' && question?.kind === 'groove' && (
+              <div className="ear-shape-panel">
+                <p className="ear-shape-panel__title">这段鼓点长这样</p>
+                <div className="ear-groove-reveal">
+                  <p className="ear-explain__body">{question.explain}</p>
+                  <p className="ear-shape-panel__hint">
+                    留意：底鼓落在哪拍、军鼓是不是压在 2·4、有没有长镲 / 边击 / 切分——这些决定了律动的「性格」。
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* 进行揭示后：解析父调 + 一键去 Jam 页练同一段 */}
+            {verdict !== 'none' && question?.kind === 'progression' && (
+              <div className="ear-shape-panel">
+                <p className="ear-shape-panel__title">这个进行的「家」</p>
+                <div className="ear-groove-reveal">
+                  <p className="ear-explain__body">{question.explain}</p>
+                  <div className="ear-shape-panel__actions">
+                    <button className="btn btn--primary" onClick={goJam} type="button">
+                      去 Jam 页练这个 →
+                    </button>
+                    <p className="ear-shape-panel__hint">
+                      父调 {question.keyLabel} 已写入共享——点按钮直接跳到 Jam 页，落在同一段进行上开练。
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
             </section>
 
             {/* 右：老师提示（揭示后给解析） */}
@@ -430,22 +595,33 @@ export function EarTrainer({ tuning }: { tuning: Tuning }) {
                 <p className="ear-teacher-tip__head">{modeLabel}怎么练</p>
                 <ul className="ear-teacher-tip__list">
                   <li>
-                    <strong>音程</strong>：先死磕 4 个最常用——大三度、纯五度、纯四度、小三度。它们是和弦与旋律的骨架。
+                    <strong>音程</strong>：先死磕 4 个最常用——大三度(4 半音，亮)、小三度(3 半音，暗)、纯五度(7，空旷)、纯四度(5，稳)。它们是和弦与旋律的骨架。小任务：弹根音，再弹它上方大三度，记住那个「亮一下」；换成小三度，那个「沉一下」——先让耳朵认得这两者的情绪差。
                   </li>
                   <li>
-                    <strong>和弦</strong>：先分「大 / 小」的情绪（亮 vs 暗），再听七和弦多出来的那个音。♭7 想走，大七甜，减七最紧张。
+                    <strong>和弦</strong>：先分「大 / 小」的情绪（亮 vs 暗），再听七和弦多出来的那个音。♭7 想走（属七的发动机）、大七甜（maj7 的温柔）、减七最紧张（dim7 的悬疑）。小任务：轮流弹 C、Cm、C7、Cmaj7、Cdim，闭眼给每个起个情绪外号。
                   </li>
                   <li>
-                    <strong>音阶</strong>：听「暗 / 亮」和那个特殊的音——蓝调音（♭5）一出现就是 blues；♭7 在就是 mixolydian。
+                    <strong>音阶</strong>：听「暗 / 亮」和那个特殊的音——蓝调音（♭5）一出现就是 blues；♭7 在就是 mixolydian（属七味）；亮里有个 #4 飘着就是 lydian。小任务：盲听时先判断「大调味还是小调味」，再去找那个「特征音」在哪。
+                  </li>
+                  <li>
+                    <strong>鼓点 (groove)</strong>：别只数拍子——听「性格」。动次打次是 rock 的脊梁；funk 把底鼓甩到反拍(切分)；雷鬼故意不踩第 1 拍(反拍驱动)；bossa 用边击点出拉丁重音；shuffle 把 8 分音符「摇」成三连音感。小任务：先能分大风格，再抠「重音落在哪」。
+                  </li>
+                  <li>
+                    <strong>进行</strong>：听「家」在哪——哪个和弦最「稳」、最想回来，就是主和弦(I)，它决定了调(大调还是小调)。小任务：盲听时先辨明暗定调，再听它整段该用什么音阶 solo（比如属七多就往 Mixolydian / blues 想）。
                   </li>
                 </ul>
               </div>
+
+              <ConceptCheatSheet
+                filter={['basic', 'chord', 'scale', 'rhythm']}
+                subtitle="练耳朵时最常碰到的术语，老师给你翻译成大白话。猜完看答案前，先对照着听。"
+              />
 
               {verdict !== 'none' && question && (
                 <div className="ear-explain">
                   <p className="ear-explain__label">
                     答案：<strong>{question.answerLabel}</strong>
-                    {question.kind !== 'interval' && (
+                    {question.kind === 'chord' || question.kind === 'scale' && (
                       <span className="ear-explain__root">
                         {' '}
                         · 根音 {ROOT_LABELS[question.rootPc]}
