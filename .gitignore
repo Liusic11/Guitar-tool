@@ -7,6 +7,15 @@ dist/
 .vite/
 *.local
 
+# 临时构建残留（不要进仓库）
+.tmp-dist/
+
+# 助手内部工作记忆（本地保留，不公开）
+.workbuddy/
+
+# TypeScript 增量构建缓存
+*.tsbuildinfo
+
 # 系统文件
 Thumbs.db
 .DS_Store

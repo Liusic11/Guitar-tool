@@ -188,6 +188,65 @@
     }
   }
 
+  /* ── 手机适配（≤768px）：顶栏横向滚动不爆屏 + 触控加大 + 指板收敛 ── */
+  @media (max-width: 768px) {
+    .topbar {
+      flex-wrap: wrap;
+      gap: var(--s-2);
+      padding: var(--s-2) var(--s-3);
+    }
+    .topbar__controls {
+      order: 5;
+      width: 100%;
+      flex-wrap: nowrap;
+      gap: var(--s-2);
+      overflow-x: auto;
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      padding-bottom: 2px;
+    }
+    .topbar__controls::-webkit-scrollbar {
+      display: none;
+    }
+    .topbar__controls .segmented {
+      flex: 0 0 auto;
+      flex-wrap: nowrap;
+    }
+    .topbar__controls .segmented__item {
+      flex: 0 0 auto;
+      min-height: 40px;
+      padding: 0.4rem 0.7rem;
+      white-space: nowrap;
+    }
+
+    /* 触控目标加大到手指友好（≥42px） */
+    .segmented__item,
+    .btn {
+      min-height: 42px;
+    }
+
+    /* 指板在窄屏收敛高度，让下方的理论 / 控件能滚到 */
+    .fretboard {
+      max-height: 32vh;
+    }
+    .module-scroll {
+      padding: var(--s-3) var(--s-3) var(--s-4);
+    }
+    .stage {
+      padding: var(--s-3) var(--s-3) var(--s-2);
+    }
+
+    /* 贯通根音 / 出题偏好条在手机上更紧凑 */
+    .train-context,
+    .train-bar {
+      margin-bottom: var(--s-2);
+    }
+    .train-bar__hint {
+      flex-basis: 100%;
+    }
+  }
+
   /* ── 出题舞台（上半屏）─────────────────────────── */
   .stage {
     position: relative;
