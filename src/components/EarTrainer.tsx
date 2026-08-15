@@ -160,7 +160,8 @@ export function EarTrainer({ tuning }: { tuning: Tuning }) {
           secondMidi: rootMidi + def.semis,
           answerId: String(def.semis),
           answerLabel: def.label,
-          options: shuffle(INTERVALS.map((i) => ({ id: String(i.semis), label: i.label }))),
+          // 按度数大小顺序排列（小二度 → … → 纯八度），方便用户按音程距离找答案
+          options: INTERVALS.map((i) => ({ id: String(i.semis), label: i.label })),
           explain: def.ref,
         }
       }

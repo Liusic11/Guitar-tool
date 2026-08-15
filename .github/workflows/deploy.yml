@@ -1,6 +1,7 @@
 # 自动部署到 GitHub Pages
-# 推送到 main 分支时，自动构建并把 dist/ 发布到 gh-pages 分支。
-# 首次使用后，去仓库 Settings → Pages → Source 选「Deploy from a branch」→ gh-pages → /(root)。
+# 推送到 main 分支时，自动构建（npm run build）并把 dist/ 发布到 GitHub Pages。
+# 发布方式：GitHub Actions 源（不设 gh-pages 分支，由 actions/deploy-pages 直接发布）。
+# 首次使用前，去仓库 Settings → Pages → Source 选「GitHub Actions」即可（本工作流会自动发布）。
 name: Deploy to GitHub Pages
 
 on:
