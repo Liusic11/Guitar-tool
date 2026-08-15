@@ -245,6 +245,26 @@
     .train-bar__hint {
       flex-basis: 100%;
     }
+
+    /* ── 核心修复：放开滚动 ──────────────────────
+       桌面铁律「height:100dvh + overflow:hidden」
+       在手机上变成牢笼——内容被锁死在一屏内，手指划不动。
+       这里全部放开，让页面像普通网页一样自然滚动。 */
+    body {
+      overflow: auto;
+      overscroll-behavior: auto;
+    }
+    .app {
+      height: auto;
+      min-height: 100dvh;
+      max-height: none;
+    }
+    .stage {
+      overflow: visible;
+    }
+    .module-scroll {
+      overflow-y: visible;
+    }
   }
 
   /* ── 出题舞台（上半屏）─────────────────────────── */
