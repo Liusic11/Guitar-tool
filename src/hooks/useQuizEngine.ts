@@ -19,9 +19,12 @@ import {
   STANDARD_TUNING,
   TUNINGS,
   findFretsForPitchClass,
-  generateQuestion,
+  buildPool,
+  buildShuffleBag,
+  buildQuestion,
   midiAt,
   pitchClassOf,
+  type BiasMode,
   type PitchClass,
   type Question,
   type QuizScope,
@@ -60,6 +63,8 @@ export interface Settings {
   showAllNotes: boolean
   /** 智能加权抽题（SRS） */
   srsEnabled: boolean
+  /** 出题偏好：随机 / 偏向主音(do) / 偏向下属(fa) / 偏向属(sol)，以贯通根音为锚 */
+  biasMode: BiasMode
   /** 合成音色档位：原声 / 电吉他清音 / 电吉他过载 */
   toneProfile: ToneProfileId
   volume: number
@@ -83,6 +88,7 @@ export const DEFAULT_SETTINGS: Settings = {
   showOctaveTwins: true,
   showAllNotes: false,
   srsEnabled: true,
+  biasMode: 'random',
   toneProfile: 'electric-clean',
   volume: 0.75,
   muted: false,
@@ -196,6 +202,9 @@ export const useQuizEngine = (): QuizEngine => {
   const ringTimerRef = useRef<number | null>(null)
   const questionRef = useRef<Question | null>(null)
   questionRef.current = question
+  /** 洗牌袋：本轮剩余的锚点 key，抽空再重洗——保证每个音都轮到、不聚类 */
+  const bagRef = useRef<string[]>([])
+  const bagPosRef = useRef(0)
   const masteryRef = useRef<MasteryMap>(mastery)
   masteryRef.current = mastery
   const markedRef = useRef<Set<string>>(marked)
@@ -319,39 +328,82 @@ export const useQuizEngine = (): QuizEngine => {
 
   /* ─────────────────── 出题 / 揭示 / 推进 ─────────────────── */
 
+  /** 把一道生成好的题推上场（出题与兜底分支共用） */
+  const commitQuestion = useCallback(
+    (q: Question) => {
+      scoredRef.current = false
+      setMarked(new Set())
+      setPickedNote(null)
+      setQuestion(q)
+      setVerdict('pending')
+      setGuess(null)
+      setPhase('asking')
+      setCycleToken((t) => t + 1)
+      setStats((s) => ({ ...s, asked: s.asked + 1 }))
+      // 注意：不要在这里把正在练的音级写回 sessionStore.rootPc。
+      // 共享根音是「从和弦 / 音阶页带过来的贯通上下文」（输入），
+      // 若反向写回，指板训练会把自己的抽题结果污染成新的贯通根音，
+      // 配合上面的 preferredPc 抽题形成永久锁死（只出同一个音）。
+      if (settings.playOnAsk) {
+        // 稍微延后一点点，让入场动画和声音同时到达
+        window.setTimeout(() => playNote(q.string, q.primaryFret, 0.8), 90)
+      }
+    },
+    [settings.playOnAsk, playNote],
+  )
+
   const ask = useCallback(() => {
-    // 贯通层：优先考当前共享根音的位置（和弦 / 音阶 / 耳朵写进去的根）
-    const preferredPc = sessionStore.get().rootPc
-    const q = generateQuestion(
-      tuning,
-      settings.scope,
-      settings.task,
-      questionRef.current,
-      settings.srsEnabled ? masteryRef.current : {},
-      preferredPc,
-    )
-    if (!q) {
+    const pool = buildPool(tuning, settings.scope, settings.task)
+    if (pool.length === 0) {
       setRunning(false)
       setPhase('idle')
       return
     }
-    scoredRef.current = false
-    setMarked(new Set())
-    setPickedNote(null)
-    setQuestion(q)
-    setVerdict('pending')
-    setGuess(null)
-    setPhase('asking')
-    setCycleToken((t) => t + 1)
-    setStats((s) => ({ ...s, asked: s.asked + 1 }))
-    // 把正在练的音级写回共享根音——指板训练也融入贯通上下文
-    sessionStore.setRoot(q.pitchClass)
 
-    if (settings.playOnAsk) {
-      // 稍微延后一点点，让入场动画和声音同时到达
-      window.setTimeout(() => playNote(q.string, q.primaryFret, 0.8), 90)
+    // 袋子抽空（或范围变了）就重洗一轮
+    if (bagPosRef.current >= bagRef.current.length) {
+      bagRef.current = buildShuffleBag(pool, {
+        srsEnabled: settings.srsEnabled,
+        mastery: settings.srsEnabled ? masteryRef.current : {},
+        preferredPc: sessionStore.get().rootPc,
+        biasMode: settings.biasMode,
+        now: Date.now(),
+      })
+      bagPosRef.current = 0
     }
-  }, [tuning, settings.scope, settings.task, settings.srsEnabled, settings.playOnAsk, playNote])
+
+    // 从袋子里取一个锚点；避免与上一题完全同锚（跨袋边界可能撞）
+    const prevKey = questionRef.current?.key ?? null
+    let key = bagRef.current[bagPosRef.current]
+    let guard = 0
+    while (prevKey && key === prevKey && bagRef.current.length > 1 && guard < bagRef.current.length) {
+      bagPosRef.current = (bagPosRef.current + 1) % bagRef.current.length
+      key = bagRef.current[bagPosRef.current]
+      guard++
+    }
+    bagPosRef.current++
+
+    const anchor = pool.find((a) => a.key === key)
+    if (!anchor) {
+      // 极端兜底：范围已变导致 key 失效，重洗取第一个
+      bagRef.current = buildShuffleBag(pool, {
+        srsEnabled: settings.srsEnabled,
+        mastery: settings.srsEnabled ? masteryRef.current : {},
+        preferredPc: sessionStore.get().rootPc,
+        biasMode: settings.biasMode,
+        now: Date.now(),
+      })
+      bagPosRef.current = 1
+      const a = pool.find((x) => x.key === bagRef.current[0])
+      if (!a) return
+      const q0 = buildQuestion(tuning, a, settings.task)
+      commitQuestion(q0)
+      return
+    }
+
+    const q = buildQuestion(tuning, anchor, settings.task)
+    commitQuestion(q)
+  }, [tuning, settings.scope, settings.task, settings.srsEnabled, settings.biasMode, commitQuestion])
 
   /** octave 结算：标记集合是否恰好等于全部正确位置 */
   const gradeOctave = useCallback(() => {
@@ -405,6 +457,9 @@ export const useQuizEngine = (): QuizEngine => {
 
   const start = useCallback(() => {
     void audioEngine.unlock()
+    // 新一轮开始：洗牌袋重置，保证从头就是均匀覆盖
+    bagRef.current = []
+    bagPosRef.current = 0
     setRunning(true)
     ask()
   }, [ask])
@@ -533,6 +588,13 @@ export const useQuizEngine = (): QuizEngine => {
     timerRef.current = window.setTimeout(ask, settings.revealHoldSec * 1000)
     return clearTimer
   }, [running, phase, settings.mode, settings.revealHoldSec, ask, clearTimer])
+
+  // 出题参数（范围 / 任务 / 调弦 / 偏好 / SRS）变化时，洗牌袋作废重洗，
+  // 避免袋子里残留已排除弦 / 范围外的旧 key
+  useEffect(() => {
+    bagRef.current = []
+    bagPosRef.current = 0
+  }, [settings.scope, settings.task, settings.tuningId, settings.biasMode, settings.srsEnabled])
 
   // 切换任务后，当前题目任务类型不一致就立即换一题
   useEffect(() => {

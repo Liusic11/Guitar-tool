@@ -8,7 +8,7 @@ import { JamTrainer } from './components/JamTrainer'
 import { LickLibrary } from './components/LickLibrary'
 import { SettingsDrawer } from './components/SettingsDrawer'
 import { useQuizEngine } from './hooks/useQuizEngine'
-import { MAX_FRET, LETTER_NAMES } from './lib/music'
+import { BIAS_OPTIONS, MAX_FRET, LETTER_NAMES } from './lib/music'
 import { audioEngine } from './lib/audio'
 import { sessionStore } from './lib/session'
 
@@ -385,14 +385,35 @@ export default function App() {
       {/* ══════════ 主舞台：按模块切换 ══════════ */}
       {view === 'train' ? (
         <main className="stage">
-          {navState.rootPc !== null && (
-            <div className="train-context" role="status">
-              <span className="train-context__dot" aria-hidden="true" />
-              <span>
-                贯通根音 <b>{LETTER_NAMES[navState.rootPc]}</b> · 指板优先考它的位置
+          <div className="train-bar">
+            {navState.rootPc !== null && (
+              <span className="train-bar__root">
+                <span className="train-context__dot" aria-hidden="true" />
+                贯通根音 <b>{LETTER_NAMES[navState.rootPc]}</b>
               </span>
+            )}
+            <span className="train-bar__label">出题偏好</span>
+            <div className="segmented segmented--wrap" role="group" aria-label="出题偏好">
+              {BIAS_OPTIONS.map((o) => (
+                <button
+                  key={o.id}
+                  className="segmented__item"
+                  aria-pressed={settings.biasMode === o.id}
+                  onClick={() => update('biasMode', o.id)}
+                  type="button"
+                >
+                  {o.label}
+                </button>
+              ))}
             </div>
-          )}
+            <span className="train-bar__hint">
+              {navState.rootPc === null
+                ? '偏向 Do / Fa / Sol 需先在和弦或音阶页选一个根音作锚；当前无锚，自动随机。'
+                : settings.biasMode === 'random'
+                  ? '纯随机出题，12 个音均匀轮。'
+                  : `以 ${LETTER_NAMES[navState.rootPc]} 为锚：Do=${LETTER_NAMES[navState.rootPc]} · Fa=${LETTER_NAMES[(navState.rootPc + 5) % 12]} · Sol=${LETTER_NAMES[(navState.rootPc + 7) % 12]}，约 40% 命中该音，其余随机。`}
+            </span>
+          </div>
           <PromptStage
             phase={phase}
             mode={settings.mode}

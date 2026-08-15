@@ -2,6 +2,9 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
+  // 相对路径部署：产物资源用 ./ 引用，部署到 GitHub Pages 任意子路径（含仓库名）
+  // 都能自动找对位置，无需硬编码仓库名。
+  base: './',
   plugins: [react()],
   server: {
     port: 5173,

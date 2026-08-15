@@ -244,7 +244,7 @@ export interface QuizScope {
 }
 
 /** 抽题锚点：一道题的最小描述 + 它的 SRS 键 */
-interface Anchor {
+export interface Anchor {
   string: number
   fret: number
   pc: PitchClass
@@ -274,7 +274,7 @@ const positionsOfPc = (tuning: Tuning, pc: PitchClass, scope: QuizScope): FretTa
  * - name：每个具体格子一个锚点，键按音级归并（认音名不挑位置）
  * - octave：每个具体格子一个锚点，键按音级归并（找八度不挑起始位置）
  */
-const buildPool = (tuning: Tuning, scope: QuizScope, task: TaskType): Anchor[] => {
+export const buildPool = (tuning: Tuning, scope: QuizScope, task: TaskType): Anchor[] => {
   const pcs = scope.includeAccidentals
     ? [...NATURAL_PITCH_CLASSES, ...ACCIDENTAL_PITCH_CLASSES]
     : NATURAL_PITCH_CLASSES
@@ -319,7 +319,7 @@ const buildPool = (tuning: Tuning, scope: QuizScope, task: TaskType): Anchor[] =
   return pool
 }
 
-const buildQuestion = (tuning: Tuning, a: Anchor, task: TaskType): Question => ({
+export const buildQuestion = (tuning: Tuning, a: Anchor, task: TaskType): Question => ({
   id: ++questionSeq,
   task,
   key: a.key,
@@ -350,9 +350,24 @@ const sampleAnchor = (pool: Anchor[], mastery: MasteryMap, now: number): number 
  * 生成一道新题。
  * @param previous 上一题，用于避免连续重复同一锚点
  * @param mastery  当前掌握度，用于加权抽题
- * @param preferredPc 优先考的音级（贯通层：当前共享根音）。命中则把题库收敛到该音级，
- *                    让「我刚在和弦 / 音阶页看的根音」直接变成指板训练要练的位置。
+ * @param preferredPc 贯通层共享根音（当前 study 的根音）。本身不直接决定偏向，
+ *                    只是「偏向 do / fa / sol」的锚点——do=根音、fa=根音上方纯四、sol=根音上方纯五。
+ * @param biasMode 出题偏好：random=纯随机；do / fa / sol=以一定概率只抽对应音级，
+ *                    其余时间从全库抽，保证不垄断。preferredPc 为 null（无共享根音）时偏向失效退回随机。
  */
+export type BiasMode = 'random' | 'do' | 'fa' | 'sol'
+
+/** 出题偏好选项：随机 / 偏向主音(Do) / 偏向下属(Fa) / 偏向属(Sol)。供训练页与设置共用。 */
+export const BIAS_OPTIONS: { id: BiasMode; label: string }[] = [
+  { id: 'random', label: '随机' },
+  { id: 'do', label: '偏向 Do' },
+  { id: 'fa', label: '偏向 Fa' },
+  { id: 'sol', label: '偏向 Sol' },
+]
+
+const PREFERRED_BIAS = 0.4
+/** do / fa / sol 相对共享根音的半音偏移：主音 / 纯四（下属）/ 纯五（属） */
+const BIAS_INTERVAL: Record<BiasMode, number> = { random: 0, do: 0, fa: 5, sol: 7 }
 export const generateQuestion = (
   tuning: Tuning,
   scope: QuizScope,
@@ -360,14 +375,19 @@ export const generateQuestion = (
   previous: Question | null,
   mastery: MasteryMap,
   preferredPc: PitchClass | null = null,
+  biasMode: BiasMode = 'random',
 ): Question | null => {
   const pool = buildPool(tuning, scope, task)
   if (pool.length === 0) return null
 
   let candidates = pool
-  if (preferredPc !== null) {
-    const focused = pool.filter((a) => a.pc === preferredPc)
-    if (focused.length > 0) candidates = focused
+  if (preferredPc !== null && biasMode !== 'random') {
+    const target = (preferredPc + BIAS_INTERVAL[biasMode]) % 12
+    const focused = pool.filter((a) => a.pc === target)
+    // 偏向但不垄断：掷骰命中偏置时只抽该音级，否则退回全库，保证 12 个音都轮得到
+    if (focused.length > 0 && Math.random() < PREFERRED_BIAS) {
+      candidates = focused
+    }
   }
   const prevKey = previous?.key ?? null
   if (candidates.length > 1 && prevKey) {
@@ -377,6 +397,66 @@ export const generateQuestion = (
 
   const idx = sampleAnchor(candidates, mastery, Date.now())
   return buildQuestion(tuning, candidates[idx], task)
+}
+
+/**
+ * 洗牌袋（shuffle bag）——保证「随机且每个音都轮到」。
+ *
+ * 旧逻辑用加权随机，弱项权重高就容易在几个音之间反复打转，用户实测 200 题里
+ * 某些弦的音级几乎从没出现。洗牌袋把每个锚点放进袋子、Fisher–Yates 洗匀，
+ * 一轮之内每个锚点至少出现一次、且不会出现「连续几个音死循环」。袋子抽空再重洗。
+ *
+ * 两个叠加层（都封顶，不会破坏均匀覆盖）：
+ *  · SRS（优先练弱项）：弱项在袋里多给几份，但封顶 BOOST_CAP 份，避免垄断。
+ *  · 偏向 do/fa/sol：把目标音级的锚点额外塞进袋子，使其占比≈PREFERRED_BIAS。
+ */
+const BOOST_CAP = 3
+
+export interface BagOptions {
+  srsEnabled: boolean
+  mastery: MasteryMap
+  preferredPc: PitchClass | null
+  biasMode: BiasMode
+  now: number
+}
+
+export const buildShuffleBag = (pool: Anchor[], opts: BagOptions): string[] => {
+  // 1) 每个锚点在袋子里复制几份：SRS 弱项轻微加份，封顶防聚类
+  const copies = pool.map((a) => {
+    if (!opts.srsEnabled) return 1
+    const w = scoreItem(opts.mastery[a.key], opts.now)
+    return Math.max(1, Math.min(BOOST_CAP, Math.round(w)))
+  })
+  const bag: string[] = []
+  pool.forEach((a, i) => {
+    for (let k = 0; k < copies[i]; k++) bag.push(a.key)
+  })
+
+  // 2) 偏向 do/fa/sol：目标音级的锚点额外塞进袋，使其占比≈PREFERRED_BIAS
+  if (opts.preferredPc !== null && opts.biasMode !== 'random') {
+    const target = (opts.preferredPc + BIAS_INTERVAL[opts.biasMode]) % 12
+    const preferred = pool.filter((a) => a.pc === target)
+    if (preferred.length > 0) {
+      // 反解：要让 (已有目标份 + extra) / (总份 + extra) ≈ PREFERRED_BIAS
+      const extra = Math.round(
+        ((PREFERRED_BIAS * bag.length - preferred.length) / (1 - PREFERRED_BIAS)),
+      )
+      if (extra > 0) {
+        preferred.forEach((a) => {
+          for (let k = 0; k < extra; k++) bag.push(a.key)
+        })
+      }
+    }
+  }
+
+  // 3) Fisher–Yates 洗牌：均匀 + 随机感
+  for (let i = bag.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    const tmp = bag[i]
+    bag[i] = bag[j]
+    bag[j] = tmp
+  }
+  return bag
 }
 
 /** 把题目渲染成「6-C」这样的简写 */

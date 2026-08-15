@@ -32,15 +32,24 @@ const DAY = 86_400_000
 export const NEW_ITEM_WEIGHT = 3.4
 
 /**
+ * 每个已见过锚点的「基础均匀权重」。
+ * 关键：它保证再熟的锚点也保有可观的被抽概率，不会把强项压到几乎不出、
+ * 导致练习只在几个弱音之间打转。弱项只在这个基础上获得温和加成。
+ */
+export const UNIFORM_FLOOR = 1
+
+/**
  * 给单个锚点算「被抽中的权重」。
- * 没见过 → 高权重；见过 → 越不熟、越久没练，权重越高。
+ * 没见过 → 高权重；见过 → 基础均匀权重 + 「越不熟 / 越久没练」的温和加成。
+ * 这样既有「多练弱项」的倾向，又不会只在几个音之间循环。
  */
 export function scoreItem(item: MasteryItem | undefined, now: number): number {
   if (!item) return NEW_ITEM_WEIGHT
   const days = (now - item.lastSeen) / DAY
   // 久没练就慢慢回锅：0.35（刚练过）→ 3（超过 5 天没碰）
   const recency = Math.min(3, 0.35 + days * 0.5)
-  return Math.max(0.03, (1 - item.ease) * recency)
+  const weakness = 1 - item.ease
+  return UNIFORM_FLOOR + weakness * recency * 1.5
 }
 
 /**
