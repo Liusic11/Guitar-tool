@@ -126,6 +126,19 @@ function shuffle<T>(arr: T[]): T[] {
   return a
 }
 
+/**
+ * 洗牌袋：抽完一整轮才允许重复（同指板训练的 buildShuffleBag 思路）。
+ * 纯 Math.random() 会连抽同一个音程/和弦，听感上「总在几个音里打转」；
+ * 用袋保证：每个候选项在一轮内恰好出现一次，杜绝连续重复。
+ */
+function drawFromBag<T>(bag: Record<string, unknown[]>, key: string, items: readonly T[]): T {
+  let b = bag[key]
+  if (!b || b.length === 0) b = shuffle([...items])
+  const item = b.pop()
+  bag[key] = b
+  return item as T
+}
+
 /** 从最低根音开始取约一个八度的音阶音，供「音阶听辨」逐音上行播放 */
 function scaleRun(tuning: Tuning, rootPc: PitchClass, formula: number[]): ScaleNote[] {
   const all = scalePositions(tuning, rootPc, formula, [0, 15]).sort((a, b) => a.midi - b.midi)
@@ -144,6 +157,9 @@ export function EarTrainer({ tuning }: { tuning: Tuning }) {
   const [pickedId, setPickedId] = useState<string | null>(null)
   const [stats, setStats] = useState({ answered: 0, correct: 0, streak: 0 })
 
+  // 各模式的洗牌袋（按 mode 区分，互不干扰）
+  const bagsRef = useRef<Record<string, unknown[]>>({})
+
   // 耳朵训练「听鼓点 / 听进行」复用的练习速度（与节奏条同一来源，听感和练习一致）
   const { bpm } = useRhythmState()
   const bpmRef = useRef(bpm)
@@ -152,8 +168,9 @@ export function EarTrainer({ tuning }: { tuning: Tuning }) {
   const genQuestion = useCallback(
     (m: EarMode): EarQuestion => {
       if (m === 'interval') {
-        const def = INTERVALS[Math.floor(Math.random() * INTERVALS.length)]
-        const rootMidi = 57 + Math.floor(Math.random() * 12) // A3..G#4 舒适音区
+        const def = drawFromBag(bagsRef.current, 'interval', INTERVALS)
+        // G3..A4（宽于原 A3..G#4），让音色质感不那么「永远同一个音区」
+        const rootMidi = 55 + Math.floor(Math.random() * 15)
         return {
           kind: 'interval',
           rootMidi,
@@ -166,7 +183,7 @@ export function EarTrainer({ tuning }: { tuning: Tuning }) {
         }
       }
       if (m === 'chord') {
-        const t: ChordType = CHORD_TYPES[Math.floor(Math.random() * CHORD_TYPES.length)]
+        const t: ChordType = drawFromBag(bagsRef.current, 'chord', CHORD_TYPES)
         const rootPc = (Math.floor(Math.random() * 12) as PitchClass)
         const v = voiceChord(rootPc, t, tuning)
         const notes = v.notes.map((n) => (n.muted ? null : midiAt(tuning, n.string, n.fret)))
@@ -183,7 +200,7 @@ export function EarTrainer({ tuning }: { tuning: Tuning }) {
       }
       if (m === 'scale') {
         // scale
-        const s: ScaleDef = SCALES[Math.floor(Math.random() * SCALES.length)]
+        const s: ScaleDef = drawFromBag(bagsRef.current, 'scale', SCALES)
         const rootPc = Math.floor(Math.random() * 12) as PitchClass
         const run = scaleRun(tuning, rootPc, s.formula)
         return {
@@ -199,7 +216,7 @@ export function EarTrainer({ tuning }: { tuning: Tuning }) {
     if (m === 'groove') {
       // 只从「鼓」类 groove 里抽（木鱼 click 不算律动）
       const drums = GROOVES.filter((g) => g.kit === 'drums')
-      const g = drums[Math.floor(Math.random() * drums.length)]
+      const g = drawFromBag(bagsRef.current, 'groove', drums)
       const distractors = shuffle(drums.filter((d) => d.id !== g.id)).slice(0, 3)
       return {
         kind: 'groove',
@@ -211,7 +228,9 @@ export function EarTrainer({ tuning }: { tuning: Tuning }) {
       }
     }
     // progression：听一段和弦进行，猜它落在哪个父调
-    const p: JamPreset = JAM_PRESETS[Math.floor(Math.random() * JAM_PRESETS.length)]
+    // 注意：内容上 6 个预设里 4 个在 C 大调（1645/1564/12小节蓝调/ii-V-I），
+    // 洗牌袋只保证「一轮内不重复」，无法消除 C 偏科——那是内容决策，需要以后补 G/D 调的预设
+    const p: JamPreset = drawFromBag(bagsRef.current, 'progression', JAM_PRESETS)
     const correct = KEY_POOL.find((k) => k.pc === p.keyPc && k.q === p.keyQuality) ?? KEY_POOL[0]
     const distractors = shuffle(KEY_POOL.filter((k) => k !== correct)).slice(0, 3)
     const options = shuffle([correct, ...distractors]).map((k) => ({ id: k.label, label: k.label }))

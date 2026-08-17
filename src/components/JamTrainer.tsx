@@ -19,9 +19,9 @@ import { RhythmBar } from './RhythmBar'
 import { audioEngine } from '../lib/audio'
 import { getGroove } from '../lib/rhythm'
 import { useRhythmState } from '../lib/rhythmStore'
-import { voiceChord, type ChordPosition } from '../lib/chords'
+import { voiceChord, listChordVoicings, type ChordPosition } from '../lib/chords'
 import { SCALES, scalePositions } from '../lib/scales'
-import { midiAt, type PitchClass, type Tuning } from '../lib/music'
+import { midiAt, LETTER_NAMES, type PitchClass, type Tuning } from '../lib/music'
 import { scaleSuggestions } from '../lib/harmony'
 import {
   JAM_PRESETS,
@@ -33,16 +33,35 @@ import {
   scaleLabel,
 } from '../lib/progressions'
 import { sessionStore } from '../lib/session'
-import { licksForChordType, LICK_STYLE_LABEL } from '../lib/licks'
+import { LICKS, licksForChordType, transposeLick, LICK_STYLE_LABEL, type Lick, type LickNote, type LickStyle } from '../lib/licks'
+import {
+  advisorHighlights,
+  advisorStory,
+  closestMidiForPc,
+  type AdvisorLevel,
+} from '../lib/advisor'
+import { TutorialDrawer } from './TutorialDrawer'
+import { JAM_TUTORIAL } from '../lib/tutorials'
 
 type ScaleMode = 'global' | 'perchord'
-type RenderMode = 'chord' | 'scale'
+type RenderMode = 'chord' | 'scale' | 'lick'
+
+/** 参谋递进选项：0 = 原样（不精选，整条音阶）；3/5/7 精选；'all' 全开 */
+const ADVISOR_OPTIONS: { id: AdvisorLevel; label: string }[] = [
+  { id: 0, label: '原样' },
+  { id: 3, label: '3 音' },
+  { id: 5, label: '5 音' },
+  { id: 7, label: '7 音' },
+  { id: 'all', label: '全开' },
+]
 
 /** Jam 把位形状组：四个和弦共用同一 CAGED 形状 */
 const JAM_SHAPES: { id: ChordPosition; label: string }[] = [
   { id: 'root6', label: 'E 形' },
   { id: 'root5', label: 'A 形' },
   { id: 'root4', label: 'D 形' },
+  { id: 'g', label: 'G 形' },
+  { id: 'c', label: 'C 形' },
   { id: 'open', label: '开放' },
 ]
 
@@ -62,6 +81,18 @@ export function JamTrainer({ tuning }: { tuning: Tuning }) {
   const [scaleMode, setScaleMode] = useState<ScaleMode>('global')
   const [renderMode, setRenderMode] = useState<RenderMode>('chord')
   const [backing, setBacking] = useState(false)
+  const [advisorLevel, setAdvisorLevel] = useState<AdvisorLevel>(5)
+  const [activeLick, setActiveLick] = useState<{
+    id: string
+    name: string
+    notes: LickNote[]
+    style: LickStyle
+    timing: string
+    difficulty: number
+  } | null>(null)
+  const [tutorialOpen, setTutorialOpen] = useState(false)
+  /** 参谋窗口外是否显示同一批音的远八度弱标（熟练后跨八度跳用） */
+  const [showFarOctaves, setShowFarOctaves] = useState(false)
 
   const [chordIndex, setChordIndex] = useState(0)
   const [playing, setPlaying] = useState(false)
@@ -96,6 +127,18 @@ export function JamTrainer({ tuning }: { tuning: Tuning }) {
     return { scaleId: def.id, rootPc: currentChord.rootPc as PitchClass, formula: def.formula }
   }, [scaleMode, preset, chordIndex, currentChord.rootPc])
 
+  /**
+   * 参谋的指板范围：
+   *   · 3 / 5 / 7 音 —— 只亮当前和弦形状的把位窗口（跟把位走，选 E 形就亮 E 形那块）
+   *   · 开「远八度」或 全放开 / 全部 —— 整条指板
+   */
+  const advisorFretRange: [number, number] = useMemo(() => {
+    if (advisorLevel === 0 || advisorLevel === 'all' || showFarOctaves) return [0, 15]
+    const lo = Math.max(0, currentVoicing.baseFret - 1)
+    const hi = Math.min(15, currentVoicing.baseFret + 5)
+    return [lo, hi]
+  }, [advisorLevel, showFarOctaves, currentVoicing.baseFret])
+
   // ── 指板高亮 ──
   const highlights = useMemo<Highlight[]>(() => {
     if (renderMode === 'chord') {
@@ -103,7 +146,36 @@ export function JamTrainer({ tuning }: { tuning: Tuning }) {
         .filter((n) => !n.muted)
         .map((n) => ({ string: n.string, fret: n.fret, kind: n.isRoot ? ('answer' as const) : ('secondary' as const) }))
     }
-    // 音阶模式：全量标出所有音阶音；落在「当前和弦把位窗口」内的用强调色（accent）
+
+    // 乐句模式：转调后的乐句音用 target 强调，可用的音阶音压暗当背景
+    if (renderMode === 'lick') {
+      if (!activeLick) return []
+      const out: Highlight[] = activeLick.notes.map((n) => ({
+        string: n.string,
+        fret: n.fret,
+        kind: 'target' as const,
+      }))
+      const bg = scalePositions(tuning, activeScale.rootPc, activeScale.formula, [0, 15])
+      for (const p of bg) {
+        if (!activeLick.notes.some((n) => n.string === p.string && n.fret === p.fret)) {
+          out.push({ string: p.string, fret: p.fret, kind: 'ghost' as const })
+        }
+      }
+      return out
+    }
+
+    // 音阶模式：参谋开 → 精选「落点 + 逼近音」；关 → 原「全部音阶音」
+    if (advisorLevel !== 0) {
+      return advisorHighlights({
+        tuning,
+        level: advisorLevel,
+        chord: currentChord,
+        keyPc: preset.keyPc,
+        keyQuality: preset.keyQuality,
+        window: [currentVoicing.baseFret, currentVoicing.baseFret + 4],
+        fretRange: advisorFretRange,
+      })
+    }
     const lo = currentVoicing.baseFret
     const hi = currentVoicing.baseFret + 4
     const positions = scalePositions(tuning, activeScale.rootPc, activeScale.formula, [0, 15])
@@ -112,12 +184,21 @@ export function JamTrainer({ tuning }: { tuning: Tuning }) {
       const near = p.fret >= lo && p.fret <= hi
       return { string: p.string, fret: p.fret, kind: near ? ('accent' as const) : ('secondary' as const) }
     })
-  }, [renderMode, currentVoicing, activeScale, tuning])
+  }, [renderMode, currentVoicing, activeScale, advisorLevel, activeLick, currentChord, preset, tuning, advisorFretRange])
 
-  const scopeRange: [number, number] =
-    renderMode === 'chord'
-      ? [currentVoicing.baseFret, currentVoicing.baseFret + 4]
-      : [0, 15]
+  const scopeRange: [number, number] = useMemo(() => {
+    if (renderMode === 'chord') return [currentVoicing.baseFret, currentVoicing.baseFret + 4]
+    if (renderMode === 'lick' && activeLick) {
+      let lo = 99
+      let hi = -1
+      for (const n of activeLick.notes) {
+        if (n.fret < lo) lo = n.fret
+        if (n.fret > hi) hi = n.fret
+      }
+      return [Math.max(0, lo - 1), Math.min(15, hi + 2)]
+    }
+    return advisorFretRange
+  }, [renderMode, currentVoicing.baseFret, activeLick, advisorFretRange])
 
   const onFretClick = useCallback(
     (stringNumber: number, fret: number) => {
@@ -198,10 +279,118 @@ export function JamTrainer({ tuning }: { tuning: Tuning }) {
     sessionStore.requestNav('chords')
   }, [currentChord])
 
+  // ── 参谋：故事线文案 + 示范播放 ──
+  // showPairs 只在 7 音 / 全开时为 true：4、7 两个逼近音在 3/5 音还没高亮，不能提前讲故事
+  const story = useMemo(
+    () =>
+      advisorLevel !== 0 && renderMode === 'scale'
+        ? advisorStory(
+            preset.keyPc,
+            preset.keyQuality,
+            currentChord,
+            advisorLevel === 7 || advisorLevel === 'all',
+          )
+        : null,
+    [advisorLevel, renderMode, preset, currentChord],
+  )
+
+  /** 指板标题：参谋开着时如实显示「实际高亮的是什么」，不拿 activeScale 的名字骗人 */
+  const advisorCaption = useMemo(() => {
+    if (advisorLevel === 0) return scaleLabel(activeScale.scaleId)
+    const keyName = `${LETTER_NAMES[preset.keyPc]}${preset.keyQuality === 'major' ? '大调' : '小调'}`
+    switch (advisorLevel) {
+      case 3:
+        return `参谋 · 3 音：只落当前和弦音（${keyName}）`
+      case 5:
+        return `参谋 · 5 音：落点 + 五声经过音（${keyName}）`
+      case 7:
+        return `参谋 · 7 音：${keyName}全音阶（加了 4、7 两个想回家的音）`
+      default:
+        return `参谋 · 全开：${keyName}全音阶 + 乐句`
+    }
+  }, [advisorLevel, activeScale, preset])
+
+  const playStoryDemo = useCallback(() => {
+    void audioEngine.unlock()
+    const s = advisorStory(preset.keyPc, preset.keyQuality, currentChord, true)
+    let t = 0
+    for (const pair of s.pairs) {
+      const m1 = closestMidiForPc(tuning, pair.from.pc, [1, 15])
+      const m2 = closestMidiForPc(tuning, pair.to.pc, [1, 15])
+      if (m1 != null) audioEngine.pluck(m1, { delay: t, velocity: 0.85 })
+      if (m2 != null) audioEngine.pluck(m2, { delay: t + 0.55, velocity: 0.85 })
+      t += 1.15
+    }
+  }, [tuning, preset, currentChord])
+
+  // ── 乐句联动：在 Jam 指板上直接高亮 + 示范播放 / 去乐句页学 ──
+  const playLickInJam = useCallback(
+    (l: Lick) => {
+      const notes = transposeLick(l, currentChord.rootPc, tuning)
+      if (!notes) return
+      setActiveLick({
+        id: l.id,
+        name: l.name,
+        notes,
+        style: l.style,
+        timing: l.timing,
+        difficulty: l.difficulty,
+      })
+      setRenderMode('lick')
+      void audioEngine.unlock()
+      notes.forEach((n, i) =>
+        audioEngine.pluck(midiAt(tuning, n.string, n.fret), {
+          delay: i * 0.14,
+          stringNumber: n.string,
+          velocity: 0.85,
+        }),
+      )
+    },
+    [tuning, currentChord],
+  )
+
+  const goLickPage = useCallback(
+    (l: Lick) => {
+      sessionStore.setRoot(currentChord.rootPc)
+      sessionStore.setLick(l.id)
+      sessionStore.requestNav('licks')
+    },
+    [currentChord],
+  )
+
+  const closeLick = useCallback(() => {
+    setActiveLick(null)
+    setRenderMode('scale')
+  }, [])
+
+  // 乐句跟随进行：换和弦时把乐句重新转调到当前和弦（标题说「已转到当前调」就得是真的）
+  useEffect(() => {
+    const id = activeLick?.id
+    if (!id) return
+    const src = LICKS.find((l) => l.id === id)
+    if (!src) return
+    const notes = transposeLick(src, currentChord.rootPc, tuning)
+    if (!notes) {
+      setActiveLick(null)
+      return
+    }
+    setActiveLick((prev) => (prev && prev.id === id ? { ...prev, notes } : prev))
+    // 依赖不含 activeLick 对象本身，避免 setState 循环；id 或和弦根音变化时重转
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentChord.rootPc, tuning, activeLick?.id])
+
+  // 当前和弦是否有所选形状的指法（没有时 voiceChord 会静默回退到最近把位，需要提示用户）
+  const shapeAvailable = useMemo(() => {
+    const opts = listChordVoicings(currentChord.rootPc, typeOf(currentChord.typeId), tuning)
+    return opts.some((o) => o.position === shape)
+  }, [currentChord.rootPc, currentChord.typeId, shape, tuning])
+  const shapeLabel = JAM_SHAPES.find((s) => s.id === shape)?.label ?? shape
+
   const suggestions = scaleSuggestions(currentChord.typeId)
 
   return (
-    <main className="module-scroll jam">
+    <>
+      <main className="module-scroll jam">
       {/* ── 头部：预设 + 音阶模式 + 父调 ── */}
       <div className="jam-head">
         <div className="field">
@@ -244,6 +433,9 @@ export function JamTrainer({ tuning }: { tuning: Tuning }) {
         <div className="jam-key" aria-live="polite">
           父调 <b>{progressionKeyLabel(preset)}</b> · {preset.style}
         </div>
+        <button className="btn btn--ghost jam-head__help" onClick={() => setTutorialOpen(true)} type="button">
+          ❓ 说明书
+        </button>
       </div>
 
       {/* ── 进行时间轴 ── */}
@@ -288,22 +480,106 @@ export function JamTrainer({ tuning }: { tuning: Tuning }) {
                     </button>
                   ))}
                 </div>
+                {!shapeAvailable && (
+                  <span className="jam-fret__shape-warn">
+                    ⚠ {shapeLabel}：当前和弦没有此把位指法，已显示最近把位
+                  </span>
+                )}
+              </>
+            ) : renderMode === 'lick' && activeLick ? (
+              <>
+                <span className="jam-fret__title">
+                  乐句 · <b>{activeLick.name}</b>
+                  <span className="jam-fret__hint">
+                    已转到当前调 {jamChordName(currentChord)}（{preset.chordNumerals[chordIndex]}），点指板可试听
+                  </span>
+                  <button className="btn btn--ghost jam-fret__close-lick" onClick={closeLick} type="button">
+                    ✕ 关掉乐句
+                  </button>
+                </span>
+                <span className="jam-fret__legend">
+                  <span>
+                    <i className="lg lg--root" />
+                    乐句音
+                  </span>
+                  <span>
+                    <i className="lg lg--sec" />
+                    可用音阶音（背景）
+                  </span>
+                </span>
               </>
             ) : (
               <>
                 <span className="jam-fret__title">
                   音阶音高亮 ·{' '}
-                  <b>{scaleLabel(activeScale.scaleId)}</b>
-                  {scaleMode === 'perchord' && (
+                  <b>{advisorCaption}</b>
+                  {scaleMode === 'perchord' && advisorLevel === 0 && (
                     <>（在 {jamChordName(currentChord)} 上）</>
                   )}
                 </span>
-                <span className="jam-fret__legend">
-                  <span><i className="lg lg--root" />根音</span>
-                  <span><i className="lg lg--accent" />和弦附近</span>
-                  <span><i className="lg lg--sec" />其余音阶音</span>
-                  <span className="jam-fret__hint">点指板上的音可试听</span>
-                </span>
+                <div className="jam-advisor">
+                  <div className="segmented segmented--sm" role="group" aria-label="参谋层级">
+                    {ADVISOR_OPTIONS.map((o) => (
+                      <button
+                        key={String(o.id)}
+                        className="segmented__item"
+                        aria-pressed={advisorLevel === o.id}
+                        onClick={() => setAdvisorLevel(o.id)}
+                        type="button"
+                      >
+                        {o.label}
+                      </button>
+                    ))}
+                  </div>
+                  {advisorLevel === 0 ? (
+                    <span className="jam-fret__legend">
+                      <span><i className="lg lg--root" />根音</span>
+                      <span><i className="lg lg--accent" />和弦附近</span>
+                      <span><i className="lg lg--sec" />其余音阶音</span>
+                      <span className="jam-fret__hint">点指板上的音可试听</span>
+                    </span>
+                  ) : (
+                    <>
+                      <div className="jam-advisor__row">
+                        <p className="jam-advisor__story">{story?.line}</p>
+                        <div className="jam-advisor__tools">
+                          {advisorLevel !== 'all' && (
+                            <button
+                              className={
+                                showFarOctaves
+                                  ? 'btn btn--ghost is-on jam-advisor__far'
+                                  : 'btn btn--ghost jam-advisor__far'
+                              }
+                              aria-pressed={showFarOctaves}
+                              onClick={() => setShowFarOctaves((v) => !v)}
+                              type="button"
+                              title="把同一批落点音在其他八度的位置也用弱标显示，熟练后可跨八度跳"
+                            >
+                              🔭 远八度
+                            </button>
+                          )}
+                          {story && story.pairs.length > 0 && (
+                            <button
+                              className="btn btn--ghost jam-advisor__demo"
+                              onClick={playStoryDemo}
+                              type="button"
+                            >
+                              ▶ 听「回家」
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <p className="jam-advisor__legend">
+                        <span><i className="lg lg--root" />落点（句尾落这）</span>
+                        {advisorLevel === 7 || advisorLevel === 'all' ? (
+                          <span><i className="lg lg--accent" />逼近音（想回家的音）</span>
+                        ) : advisorLevel === 5 ? (
+                          <span><i className="lg lg--accent" />五声经过音</span>
+                        ) : null}
+                      </p>
+                    </>
+                  )}
+                </div>
               </>
             )}
           </div>
@@ -361,27 +637,23 @@ export function JamTrainer({ tuning }: { tuning: Tuning }) {
             <p className="chord-theory__p">{preset.tip}</p>
           </div>
 
-          {/* ── 乐句建议：当前和弦上能弹的句子 → 去乐句页 ── */}
+          {/* ── 乐句建议：在当前和弦上直接高亮试弹，或去乐句页学 ── */}
           <div className="jam-licks">
             <span className="chord-theory__h">🎵 现在这个和弦上能弹的乐句</span>
             {licksForChordType(currentChord.typeId, 3).map((l) => (
-              <button
-                key={l.id}
-                className="jam-licks__item"
-                onClick={() => {
-                  sessionStore.setRoot(l.rootPc)
-                  sessionStore.setLick(l.id)
-                  sessionStore.requestNav('licks')
-                }}
-                type="button"
-              >
-                <b>{l.name}</b>
-                <span>
-                  {LICK_STYLE_LABEL[l.style]} · 难度 {l.difficulty} · {l.timing}
-                </span>
-              </button>
+              <div key={l.id} className="jam-licks__item">
+                <button className="jam-licks__main" onClick={() => playLickInJam(l)} type="button">
+                  <b>{l.name}</b>
+                  <span>
+                    {LICK_STYLE_LABEL[l.style]} · 难度 {l.difficulty} · {l.timing}
+                  </span>
+                </button>
+                <button className="jam-licks__goto" onClick={() => goLickPage(l)} type="button">
+                  去乐句页学 →
+                </button>
+              </div>
             ))}
-            <p className="jam-licks__hint">点一句直接去乐句页看指板、听示范</p>
+            <p className="jam-licks__hint">点乐句名：转调到当前调、在指板上高亮并示范；想慢慢学再去乐句页</p>
           </div>
         </aside>
       </div>
@@ -394,7 +666,10 @@ export function JamTrainer({ tuning }: { tuning: Tuning }) {
             <button
               className="segmented__item"
               aria-pressed={renderMode === 'chord'}
-              onClick={() => setRenderMode('chord')}
+              onClick={() => {
+                setActiveLick(null)
+                setRenderMode('chord')
+              }}
               type="button"
             >
               和弦形状
@@ -402,7 +677,10 @@ export function JamTrainer({ tuning }: { tuning: Tuning }) {
             <button
               className="segmented__item"
               aria-pressed={renderMode === 'scale'}
-              onClick={() => setRenderMode('scale')}
+              onClick={() => {
+                setActiveLick(null)
+                setRenderMode('scale')
+              }}
               type="button"
             >
               音阶音
@@ -425,6 +703,9 @@ export function JamTrainer({ tuning }: { tuning: Tuning }) {
           </button>
         </div>
       </div>
-    </main>
+      </main>
+
+      <TutorialDrawer open={tutorialOpen} onClose={() => setTutorialOpen(false)} tree={JAM_TUTORIAL} />
+    </>
   )
 }

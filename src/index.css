@@ -4451,3 +4451,504 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ── 学习路径（课程地图）── */
+@layer components {
+  .path-stage {
+    grid-row: 2;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .path-hero {
+    padding: 1.1rem 1.25rem;
+    background: linear-gradient(135deg, var(--paper-2), oklch(93% 0.02 78));
+    border: 1px solid var(--ink-4);
+    border-top: 4px solid var(--brass);
+    border-radius: var(--radius-lg);
+    margin-bottom: var(--s-4);
+  }
+  .path-hero__title {
+    font-family: var(--font-display);
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--rose-lo);
+    margin: 0.2rem 0 0.45rem;
+  }
+  .path-hero__desc {
+    font-size: 0.95rem;
+    line-height: 1.7;
+    font-weight: 600;
+    color: var(--ink-2);
+    margin: 0;
+  }
+  .path-hero__todo-mark {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: var(--clay);
+    background: var(--ember-wash);
+    border-radius: 999px;
+    padding: 0.1rem 0.45rem;
+  }
+  .path-progress {
+    display: flex;
+    align-items: center;
+    gap: var(--s-3);
+    margin-top: var(--s-4);
+  }
+  .path-progress__bar {
+    flex: 1;
+    height: 10px;
+    background: var(--paper-sunk);
+    border: 1px solid var(--ink-4);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .path-progress__fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--brass-lo), var(--brass));
+    transition: width 0.4s var(--ease-out-quart);
+  }
+  .path-progress__label {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--ink-3);
+    white-space: nowrap;
+  }
+
+  .path-card {
+    padding: 1.1rem 1.25rem;
+    background: var(--paper-2);
+    border: 1px solid var(--ink-4);
+    border-radius: var(--radius-lg);
+    margin-bottom: var(--s-4);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  .path-card--done {
+    border-color: var(--sage);
+    box-shadow: inset 3px 0 0 var(--sage);
+  }
+  .path-card__head {
+    display: flex;
+    align-items: center;
+    gap: var(--s-3);
+  }
+  .path-card__num {
+    flex: 0 0 auto;
+    width: 2.2rem;
+    height: 2.2rem;
+    display: grid;
+    place-items: center;
+    font-family: var(--font-display);
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: var(--bone);
+    background: linear-gradient(145deg, var(--rose-hi), var(--rose-lo));
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sunk);
+  }
+  .path-card__titles {
+    display: flex;
+    align-items: baseline;
+    gap: var(--s-2);
+    min-width: 0;
+    flex: 1;
+  }
+  .path-card__title {
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--ink);
+    margin: 0;
+  }
+  .path-card__duration {
+    font-size: 0.75rem;
+    color: var(--ink-3);
+    white-space: nowrap;
+  }
+  .path-card__badge {
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: var(--sage);
+    letter-spacing: 0.05em;
+    flex: 0 0 auto;
+  }
+  .path-card__goal {
+    font-size: 1rem;
+    line-height: 1.65;
+    font-weight: 700;
+    color: var(--rose-lo);
+    margin: 0.6rem 0 0;
+  }
+  .path-card__block {
+    margin-top: 0.8rem;
+    padding-top: 0.8rem;
+    border-top: 1px dashed var(--ink-4);
+  }
+  .path-card__h {
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--brass-lo);
+    font-weight: 800;
+    margin: 0 0 0.45rem;
+  }
+  .path-card__concepts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .path-card__concepts li {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--ink-2);
+    background: var(--paper-3);
+    border: 1px solid var(--ink-4);
+    border-radius: 999px;
+    padding: 0.22rem 0.65rem;
+  }
+  .path-card__practices,
+  .path-card__checks,
+  .path-card__pitfalls {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 0.4rem;
+  }
+  .path-card__practice {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s-2);
+  }
+  .path-card__practice-label {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .path-card__go {
+    font-size: 0.8rem;
+    padding: 0.25rem 0.65rem;
+    flex: 0 0 auto;
+  }
+  .path-card__todo {
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: var(--clay);
+    background: var(--ember-wash);
+    border-radius: 999px;
+    padding: 0.2rem 0.6rem;
+    flex: 0 0 auto;
+  }
+  .path-card__check {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    font-weight: 600;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .path-card__check input {
+    margin-top: 0.25rem;
+    accent-color: var(--sage);
+    width: 1rem;
+    height: 1rem;
+    flex: 0 0 auto;
+  }
+  .path-card__check input:checked + span {
+    color: var(--ink-3);
+    text-decoration: line-through;
+    text-decoration-color: var(--sage);
+  }
+  .path-card__pitfalls li {
+    font-size: 0.9rem;
+    line-height: 1.5;
+    font-weight: 600;
+    color: var(--ink-2);
+    padding-left: 1.1rem;
+    position: relative;
+  }
+  .path-card__pitfalls li::before {
+    content: '⚠';
+    position: absolute;
+    left: 0;
+    top: 0;
+    font-size: 0.72rem;
+  }
+
+  @media (max-width: 768px) {
+    .path-card {
+      padding: 0.9rem 0.95rem;
+    }
+    .path-card__duration {
+      display: none;
+    }
+  }
+}
+
+/* ── 即兴参谋（Jam）── */
+@layer components {
+  /* 落点 target：落地 + 缓慢呼吸，提示「家」的位置 */
+  .dot--target .dot__body {
+    animation:
+      dot-land 0.44s var(--ease-out-expo) both,
+      target-breathe 2.2s var(--ease-in-out-quart) 0.5s infinite;
+  }
+  @keyframes target-breathe {
+    0%,
+    100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.08);
+    }
+  }
+
+  /* 逼近音 approach：小号黄铜空心点，先落地即可（不做动画避免和 target 抢注意力） */
+  .dot--approach .dot__body {
+    animation: dot-land 0.44s var(--ease-out-expo) 0.1s both;
+  }
+
+  .jam-head__help {
+    flex: 0 0 auto;
+    font-size: 0.82rem;
+    padding: 0.3rem 0.7rem;
+  }
+
+  .jam-advisor {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    width: 100%;
+    margin-top: 0.35rem;
+  }
+  .jam-advisor__row {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--s-3);
+    flex-wrap: wrap;
+  }
+  .jam-advisor__story {
+    flex: 1 1 240px;
+    margin: 0;
+    font-size: 0.84rem;
+    line-height: 1.55;
+    font-weight: 700;
+    color: var(--rose-lo);
+    background: var(--ember-wash);
+    border: 1px solid var(--ink-4);
+    border-left: 3px solid var(--brass-lo);
+    border-radius: var(--radius);
+    padding: 0.4rem 0.6rem;
+  }
+  .jam-advisor__demo {
+    flex: 0 0 auto;
+    font-size: 0.8rem;
+    padding: 0.3rem 0.7rem;
+    white-space: nowrap;
+  }
+  .jam-advisor__tools {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+    flex-wrap: wrap;
+  }
+  .jam-advisor__far {
+    flex: 0 0 auto;
+    font-size: 0.8rem;
+    padding: 0.3rem 0.7rem;
+    white-space: nowrap;
+  }
+  .jam-advisor__legend {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    flex-wrap: wrap;
+    margin: 0;
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: var(--ink-3);
+  }
+  .jam-advisor__legend .lg {
+    margin-right: 0.25rem;
+  }
+
+  .jam-fret__close-lick {
+    flex: 0 0 auto;
+    font-size: 0.78rem;
+    padding: 0.2rem 0.6rem;
+    margin-left: auto;
+  }
+  .jam-fret__shape-warn {
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: var(--clay);
+    background: var(--ember-wash);
+    border-radius: var(--radius);
+    padding: 0.2rem 0.55rem;
+  }
+
+  /* 乐句建议列表：主体按钮 + 去乐句页小链接 */
+  .jam-licks__item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    text-align: left;
+    padding: 0.5rem 0.7rem;
+    background: var(--paper-2);
+    border: 1px solid var(--ink-4);
+    border-radius: var(--radius);
+    transition: border-color 0.15s ease;
+  }
+  .jam-licks__item:hover {
+    border-color: var(--ember);
+  }
+  .jam-licks__main {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+  }
+  .jam-licks__main b {
+    font-size: 0.9rem;
+    color: var(--ink);
+  }
+  .jam-licks__main span {
+    font-size: 0.76rem;
+    color: var(--ink-3);
+  }
+  .jam-licks__goto {
+    align-self: flex-start;
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: var(--ember);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.15rem 0 0;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+}
+
+/* ── 说明书抽屉（Tutorial Drawer）── */
+@layer components {
+  .tut-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    background: oklch(20% 0.03 55 / 0.45);
+    display: flex;
+    justify-content: flex-end;
+    animation: fade-in 0.2s ease both;
+  }
+  .tut-drawer {
+    width: min(440px, 92vw);
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: var(--paper);
+    border-left: 1px solid var(--line);
+    box-shadow: var(--shadow-float);
+    animation: drawer-in 0.28s var(--ease-out-quart) both;
+  }
+  .tut-drawer__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--s-3);
+    padding: var(--s-4) var(--s-5);
+    border-bottom: 1px solid var(--line);
+    background: linear-gradient(to bottom, var(--paper), var(--paper-2));
+  }
+  .tut-drawer__title {
+    font-family: var(--font-display);
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--rose-lo);
+    margin: 0;
+  }
+  .tut-drawer__subtitle {
+    font-size: 0.85rem;
+    line-height: 1.55;
+    font-weight: 600;
+    color: var(--ink-3);
+    margin: 0.3rem 0 0;
+  }
+  .tut-drawer__body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: var(--s-3) var(--s-4) var(--s-7);
+  }
+
+  .tut-node__row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.45rem;
+    width: 100%;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.42rem 0.4rem;
+    border-radius: var(--radius);
+    transition: background 0.15s ease;
+  }
+  .tut-node__row:hover {
+    background: var(--paper-2);
+  }
+  .tut-node__arrow {
+    flex: 0 0 auto;
+    width: 0.9rem;
+    color: var(--brass-lo);
+    font-size: 0.8rem;
+    margin-top: 0.15rem;
+  }
+  .tut-node__label {
+    font-size: 0.92rem;
+    line-height: 1.45;
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .tut-node--d1 > .tut-node__row .tut-node__label {
+    font-weight: 800;
+    color: var(--rose-lo);
+  }
+  .tut-node__plain {
+    margin: 0.1rem 0 0.4rem 1.75rem;
+    padding: 0.55rem 0.7rem;
+    font-size: 0.88rem;
+    line-height: 1.65;
+    font-weight: 600;
+    color: var(--ink-2);
+    background: var(--paper-2);
+    border: 1px solid var(--ink-4);
+    border-left: 3px solid var(--brass);
+    border-radius: var(--radius);
+  }
+  .tut-node__children {
+    margin-left: 0.9rem;
+    padding-left: 0.55rem;
+    border-left: 1px dashed var(--ink-4);
+  }
+}
+
+

@@ -6,6 +6,7 @@ import { EarTrainer } from './components/EarTrainer'
 import { ScaleTrainer } from './components/ScaleTrainer'
 import { JamTrainer } from './components/JamTrainer'
 import { LickLibrary } from './components/LickLibrary'
+import { LearningPath } from './components/LearningPath'
 import { SettingsDrawer } from './components/SettingsDrawer'
 import { useQuizEngine } from './hooks/useQuizEngine'
 import { BIAS_OPTIONS, MAX_FRET, LETTER_NAMES } from './lib/music'
@@ -45,12 +46,12 @@ export default function App() {
   } = engine
 
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [view, setView] = useState<'train' | 'chords' | 'scales' | 'ear' | 'jam' | 'licks'>('train')
+  const [view, setView] = useState<'train' | 'chords' | 'scales' | 'ear' | 'jam' | 'licks' | 'path'>('train')
   const task = settings.task
 
   // 离开指板训练时若还在跑就先停掉，避免两套声音打架
   const switchView = useCallback(
-    (next: 'train' | 'chords' | 'scales' | 'ear' | 'jam' | 'licks') => {
+    (next: 'train' | 'chords' | 'scales' | 'ear' | 'jam' | 'licks' | 'path') => {
       if (next !== 'train' && running) stop()
       setView(next)
     },
@@ -250,6 +251,13 @@ export default function App() {
           <div className="segmented" role="group" aria-label="模块">
             <button
               className="segmented__item"
+              aria-pressed={view === 'path'}
+              onClick={() => switchView('path')}
+            >
+              路径
+            </button>
+            <button
+              className="segmented__item"
               aria-pressed={view === 'train'}
               onClick={() => switchView('train')}
             >
@@ -383,7 +391,9 @@ export default function App() {
       </header>
 
       {/* ══════════ 主舞台：按模块切换 ══════════ */}
-      {view === 'train' ? (
+      {view === 'path' ? (
+        <LearningPath />
+      ) : view === 'train' ? (
         <main className="stage">
           <div className="train-bar">
             {navState.rootPc !== null && (

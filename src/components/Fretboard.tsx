@@ -41,7 +41,17 @@ const SPAN_RATIO = 0.815 // 弦跨度占指板宽度的比例
 /** 弦的绘制粗细（SVG 单位），6 弦 → 1 弦 */
 const STRING_WIDTHS = [5.0, 4.1, 3.3, 2.6, 1.9, 1.5]
 
-export type HighlightKind = 'answer' | 'secondary' | 'accent' | 'done' | 'hit' | 'miss' | 'ghost' | 'reference'
+export type HighlightKind =
+  | 'answer'
+  | 'secondary'
+  | 'accent'
+  | 'done'
+  | 'hit'
+  | 'miss'
+  | 'ghost'
+  | 'reference'
+  | 'target'
+  | 'approach'
 
 export interface Highlight {
   string: number
@@ -185,6 +195,20 @@ const HIGHLIGHT_STYLE: Record<
     stroke: 'oklch(58% 0.09 80)',
     text: 'oklch(0% 0 0 / 0)',
     radius: 13,
+  },
+  /** 参谋落点：当前和弦的和弦音——「句尾落在这里」的「家」（大号炭火红 + 呼吸动画） */
+  target: {
+    fill: 'url(#dotEmber)',
+    stroke: 'oklch(42% 0.16 32)',
+    text: 'oklch(98% 0.01 60)',
+    radius: 14.5,
+  },
+  /** 参谋逼近音：调内的 7 / 4 级——「想回家」的音，当跳板用（小号黄铜空心） */
+  approach: {
+    fill: 'oklch(76% 0.12 80 / 0.5)',
+    stroke: 'oklch(52% 0.12 72)',
+    text: 'oklch(22% 0.05 55)',
+    radius: 9.5,
   },
 }
 
