@@ -150,9 +150,9 @@ export const JAM_TUTORIAL: TutorialTree = {
         },
         {
           id: 'ui-bottom',
-          label: '底部：鼓 / 速度 / backing',
+          label: '底部：鼓 / 速度 / backing / 扫弦型 / 预备拍',
           plain:
-            '鼓型与 BPM 在这里调。「backing」开 = 程序自动帮你扫和弦当伴奏（合上眼只弹旋律），关 = 只听鼓。',
+            '鼓型与 BPM 在这里调。「backing」开 = 程序自动帮你扫和弦当伴奏（合上眼只弹旋律），关 = 只听鼓。「扫弦型」= 换一种扫法当基础节奏（选定后自动开 backing）。「预备拍」= 开始前先空一小节 count-in，方便你开内录。',
         },
       ],
     },

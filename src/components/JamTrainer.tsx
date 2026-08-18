@@ -42,6 +42,7 @@ import {
 } from '../lib/advisor'
 import { TutorialDrawer } from './TutorialDrawer'
 import { JAM_TUTORIAL } from '../lib/tutorials'
+import { STRUM_PATTERNS } from '../lib/strums'
 
 type ScaleMode = 'global' | 'perchord'
 type RenderMode = 'chord' | 'scale' | 'lick'
@@ -93,6 +94,10 @@ export function JamTrainer({ tuning }: { tuning: Tuning }) {
   const [tutorialOpen, setTutorialOpen] = useState(false)
   /** 参谋窗口外是否显示同一批音的远八度弱标（熟练后跨八度跳用） */
   const [showFarOctaves, setShowFarOctaves] = useState(false)
+  /** 扫弦型：null = 不启用（用默认「每换和弦扫一下」） */
+  const [strumPatternId, setStrumPatternId] = useState<string | null>(null)
+  /** 预备拍：开始前空一小节 count-in，方便开内录 */
+  const [countIn, setCountIn] = useState(false)
 
   const [chordIndex, setChordIndex] = useState(0)
   const [playing, setPlaying] = useState(false)
@@ -106,6 +111,12 @@ export function JamTrainer({ tuning }: { tuning: Tuning }) {
     () => voiceChord(currentChord.rootPc, typeOf(currentChord.typeId), tuning, shape),
     [currentChord.rootPc, currentChord.typeId, tuning, shape],
   )
+
+  // 实时引用：RhythmBar 的每步回调里读最新扫弦型 / 和弦指法，避免闭包过期
+  const strumPatternRef = useRef<string | null>(null)
+  strumPatternRef.current = strumPatternId
+  const voicingRef = useRef(currentVoicing)
+  voicingRef.current = currentVoicing
 
   // 进入 Jam 即把父调写进共享上下文，其他模块能看到这条调性线
   useEffect(() => {
@@ -244,7 +255,8 @@ export function JamTrainer({ tuning }: { tuning: Tuning }) {
       if (idx !== chordIdxRef.current) {
         chordIdxRef.current = idx
         setChordIndex(idx)
-        if (backingRef.current) {
+        // 有扫弦型时由图案逐下扫（避免换和弦那一下额外多扫一次）
+        if (backingRef.current && !strumPatternRef.current) {
           const c = presetRef.current.chords[idx]
           const v = voiceChord(c.rootPc, typeOf(c.typeId), tuning)
           audioEngine.strum(
@@ -253,6 +265,22 @@ export function JamTrainer({ tuning }: { tuning: Tuning }) {
           )
         }
       }
+    },
+    [tuning],
+  )
+
+  // ── 扫弦型：每个 subdiv 步按图案扫当前和弦（D 下扫 / U 上扫），精确对齐音频时钟 ──
+  const handleStep = useCallback(
+    (stepInBar: number, t: number) => {
+      const pid = strumPatternRef.current
+      if (!pid) return
+      const pat = STRUM_PATTERNS.find((x) => x.id === pid)
+      if (!pat) return
+      const dir = pat.steps[stepInBar % pat.steps.length]
+      if (dir === '_') return
+      const v = voicingRef.current
+      const notes = v.notes.map((n) => (n.muted ? null : midiAt(tuning, n.string, n.fret)))
+      audioEngine.strum(notes, dir === 'D' ? 0.009 : -0.009, t)
     },
     [tuning],
   )
@@ -658,9 +686,43 @@ export function JamTrainer({ tuning }: { tuning: Tuning }) {
         </aside>
       </div>
 
-      {/* ── 底部：节奏 + 切换 + 贯通 ── */}
+      {/* ── 底部：节奏 + 扫弦型/预备拍 + 切换 + 贯通 ── */}
       <div className="jam-bottom">
-        <RhythmBar onBeat={handleBeat} />
+        <RhythmBar
+          onBeat={handleBeat}
+          onStep={handleStep}
+          countInBeats={countIn ? beatsPerBarRef.current : 0}
+        />
+        <div className="jam-bottom__extra">
+          <label className="jam-bottom__label" htmlFor="jamStrum">
+            扫弦型
+          </label>
+          <select
+            id="jamStrum"
+            value={strumPatternId ?? 'none'}
+            onChange={(e) => {
+              const v = e.target.value
+              setStrumPatternId(v === 'none' ? null : v)
+              if (v !== 'none') setBacking(true)
+            }}
+            title="选定后按这个扫法扫当前和弦当基础节奏（需开 backing 才出声）"
+          >
+            <option value="none">无（默认每换和弦扫一下）</option>
+            {STRUM_PATTERNS.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name} — {p.hint}
+              </option>
+            ))}
+          </select>
+          <button
+            className={countIn ? 'btn btn--ghost is-on' : 'btn btn--ghost'}
+            aria-pressed={countIn}
+            onClick={() => setCountIn((v) => !v)}
+            title="开始前先空一小节预备拍（几声 click），给你开内录的时间"
+          >
+            🎬 预备拍
+          </button>
+        </div>
         <div className="jam-bottom__right">
           <div className="segmented" role="group" aria-label="指板展示">
             <button

@@ -2073,6 +2073,28 @@
   flex-wrap: wrap;
   margin-left: auto;
 }
+.jam-bottom__extra {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.jam-bottom__label {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.jam-bottom__extra select {
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--ink-4);
+  border-radius: var(--radius);
+  padding: 0.28rem 0.5rem;
+  max-width: 260px;
+}
 
 /* 把位切换小号分段控件 */
 .segmented--sm .segmented__item {

@@ -3,7 +3,16 @@ import { getGroove, type RhythmPreset } from '../lib/rhythm'
 import { useRhythmState } from '../lib/rhythmStore'
 import { audioEngine } from '../lib/audio'
 
-export function RhythmBar({ onBeat }: { onBeat?: (beatIndex: number) => void }) {
+interface RhythmBarProps {
+  /** 每拍（每 subdiv 步）回调一次，供音阶跟拍 / 模进对齐高亮 */
+  onBeat?: (beatIndex: number) => void
+  /** 每个 subdiv 步回调一次（带精确音频时钟时间），供 Jam 扫弦型逐下对齐 */
+  onStep?: (stepInBar: number, time: number) => void
+  /** 预备拍数（按「拍」计）：开始前先空出几拍只响 click，不推鼓点不回调；默认 0 = 无 */
+  countInBeats?: number
+}
+
+export function RhythmBar({ onBeat, onStep, countInBeats = 0 }: RhythmBarProps) {
   const { bpm, grooveId } = useRhythmState()
   const [playing, setPlaying] = useState(false)
   const [playStep, setPlayStep] = useState(-1)
@@ -18,6 +27,11 @@ export function RhythmBar({ onBeat }: { onBeat?: (beatIndex: number) => void }) 
   presetRef.current = preset
   const onBeatRef = useRef(onBeat)
   onBeatRef.current = onBeat
+  const onStepRef = useRef(onStep)
+  onStepRef.current = onStep
+  // 预备拍在「开始那一刻」读数，播放中改 toggle 不影响当前一轮
+  const countInBeatsRef = useRef(countInBeats)
+  countInBeatsRef.current = countInBeats
 
   useEffect(() => {
     if (!playing) {
@@ -26,14 +40,23 @@ export function RhythmBar({ onBeat }: { onBeat?: (beatIndex: number) => void }) 
     }
     void audioEngine.unlock()
     let nextTime = audioEngine.currentTime + 0.12
+    let countLeft = countInBeatsRef.current
     let step = 0
     const timers: number[] = []
 
     const schedule = () => {
       const p = presetRef.current
       const stepDur = 60 / bpmRef.current / p.subdiv
+      const beatDur = stepDur * p.subdiv
       const ahead = 0.14
       while (nextTime < audioEngine.currentTime + ahead) {
+        // 预备拍：只响重音 click 当倒计时，不推鼓点、不回调——给开内录留起手时间
+        if (countLeft > 0) {
+          audioEngine.click(nextTime, true)
+          nextTime += beatDur
+          countLeft -= 1
+          continue
+        }
         const s = step
         const spec = p.steps[s]
         // swing：把反拍（非拍头）往后拖成「长-短」三连音感
@@ -56,6 +79,8 @@ export function RhythmBar({ onBeat }: { onBeat?: (beatIndex: number) => void }) 
             setPlayStep(s)
             // 每拍（每 subdiv 步）回调一次，供音阶跟拍 / 模进对齐高亮
             if (s % p.subdiv === 0) onBeatRef.current?.(s / p.subdiv)
+            // 每个 subdiv 步都回调（带精确音频时间），供 Jam 扫弦型逐下对齐
+            onStepRef.current?.(s, tPlay)
           }, visualDelay),
         )
         nextTime += stepDur
