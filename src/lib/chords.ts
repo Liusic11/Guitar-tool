@@ -431,6 +431,20 @@ function makeCandidate(
   baseFret: number,
 ): VoicingOption | null {
   const notes = buildVoicing(rootPc, type, tuning, baseFret)
+  // CAGED 横按形只保留「根音弦及以上」的弦，闷掉更低的弦，
+  // 避免 buildVoicing 把低音弦也凑成和弦音、变成加厚版。
+  // → A 形得到干净的 5 弦版（如 x-3-5-5-5-3），D 形得到干净的 4 弦版（如 xx-10-12-13-12）。
+  if (rootString >= 4) {
+    for (const n of notes) {
+      if (n.string > rootString) {
+        n.muted = true
+        n.finger = null
+        n.isRoot = false
+        n.open = false
+        n.fret = 0
+      }
+    }
+  }
   assignFingers(notes, baseFret)
   const hasBarre = baseFret > 0
   const voicing: Voicing = { baseFret, rootString, hasBarre, notes }
@@ -538,6 +552,67 @@ export function voiceChord(
   }
 
   return sorted[0].voicing
+}
+
+/**
+ * 纵向（同把位区换形状）模式：给定一个调性 (keyPc) 与锚点 CAGED 位置，
+ * 为某个和弦挑选「根音所在品位离锚点最近」的 CAGED 形状。
+ * 这样整段进行都会聚在锚点附近那块把位区，手不离开区域，只换形状——
+ * 这正是真实 comping「在一个把位里弹完整首」的练法（区别于横向「同形状换把位」）。
+ * 对 12 个调、任意和弦类型都成立，不依赖手写对照表。
+ */
+const VERTICAL_POSITIONS: ChordPosition[] = ['root6', 'root5', 'root4', 'g', 'c']
+
+export const VERTICAL_ANCHORS: { id: ChordPosition; label: string; approx: string }[] = [
+  { id: 'c', label: 'C 形', approx: '≈开放' },
+  { id: 'root5', label: 'A 形', approx: '≈3 品' },
+  { id: 'g', label: 'G 形', approx: '≈5 品' },
+  { id: 'root6', label: 'E 形', approx: '≈8 品' },
+  { id: 'root4', label: 'D 形', approx: '≈10 品' },
+]
+
+/** 取某指法的根音实际品位（用于在把位上的绝对位置比较） */
+function rootFretOf(v: Voicing): number {
+  return v.notes.find((n) => n.isRoot)?.fret ?? v.baseFret
+}
+
+export function voiceVertical(
+  rootPc: PitchClass,
+  type: ChordType,
+  keyPc: PitchClass,
+  anchor: ChordPosition,
+  tuning: Tuning,
+): { voicing: Voicing; position: ChordPosition } {
+  const majType = CHORD_TYPES.find((t) => t.id === 'maj')!
+  // 锚点 = I 级在 anchor 位置的根音品位，作为「留在哪块把位区」的参考点
+  const anchorVoicing = voiceChord(keyPc, majType, tuning, anchor)
+  const anchorRootFret = rootFretOf(anchorVoicing)
+
+  const opts = listChordVoicings(rootPc, type, tuning).filter((o) =>
+    VERTICAL_POSITIONS.includes(o.position),
+  )
+
+  if (opts.length === 0) {
+    // 极少数和弦在该调没有任何可移动 CAGED 形状，回退到 auto（UI 会提示）
+    return { voicing: voiceChord(rootPc, type, tuning, 'auto'), position: 'auto' }
+  }
+
+  let best = opts[0]
+  let bestDist = Math.abs(rootFretOf(opts[0].voicing) - anchorRootFret)
+  for (const o of opts) {
+    const dist = Math.abs(rootFretOf(o.voicing) - anchorRootFret)
+    // 平手时：优先用锚点形状（让 I 级真的落在锚点形状上），其次取把位更低者
+    if (
+      dist < bestDist ||
+      (dist === bestDist && o.position === anchor && best.position !== anchor) ||
+      (dist === bestDist && o.position !== anchor && best.position !== anchor &&
+        o.voicing.baseFret < best.voicing.baseFret)
+    ) {
+      bestDist = dist
+      best = o
+    }
+  }
+  return { voicing: best.voicing, position: best.position }
 }
 
 /** 半音间隔 → 级数名（用于公式展示） */

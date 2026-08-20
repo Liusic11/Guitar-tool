@@ -19,7 +19,7 @@ import { RhythmBar } from './RhythmBar'
 import { audioEngine } from '../lib/audio'
 import { getGroove } from '../lib/rhythm'
 import { useRhythmState } from '../lib/rhythmStore'
-import { voiceChord, listChordVoicings, type ChordPosition } from '../lib/chords'
+import { voiceChord, listChordVoicings, voiceVertical, VERTICAL_ANCHORS, type ChordPosition } from '../lib/chords'
 import { SCALES, scalePositions } from '../lib/scales'
 import { midiAt, LETTER_NAMES, type PitchClass, type Tuning } from '../lib/music'
 import { scaleSuggestions } from '../lib/harmony'
@@ -103,14 +103,28 @@ export function JamTrainer({ tuning }: { tuning: Tuning }) {
   const [playing, setPlaying] = useState(false)
   // 形状组：四个和弦共用同一个 CAGED 形状（E/A/D/开放），不随和弦切换跳回
   const [shape, setShape] = useState<ChordPosition>('root6')
+  // 练习轴：横向（同形状换把位）/ 纵向（同把位区换形状）
+  const [axis, setAxis] = useState<'horizontal' | 'vertical'>('horizontal')
+  // 纵向锚点：I 级用哪个 CAGED 形状 → 决定手留在哪个把位区
+  const [anchor, setAnchor] = useState<ChordPosition>('g')
 
   const currentChord = preset.chords[chordIndex]
 
-  // 当前和弦固定用「形状组」的指法（选了 E 形，四个和弦都 E 形）
-  const currentVoicing = useMemo(
-    () => voiceChord(currentChord.rootPc, typeOf(currentChord.typeId), tuning, shape),
-    [currentChord.rootPc, currentChord.typeId, tuning, shape],
-  )
+  // 每个和弦的指法 + 它实际用的 CAGED 位置：
+  //  · 横向：四和弦共用同一形状（shape），只换把位
+  //  · 纵向：四和弦留在同一把位区，各自挑离锚点最近的形状
+  const stepResults = useMemo(() => {
+    return preset.chords.map((c) => {
+      const type = typeOf(c.typeId)
+      if (axis === 'horizontal') {
+        return { voicing: voiceChord(c.rootPc, type, tuning, shape), position: shape }
+      }
+      return voiceVertical(c.rootPc, type, preset.keyPc, anchor, tuning)
+    })
+  }, [preset, tuning, shape, axis, anchor])
+
+  const currentVoicing = stepResults[chordIndex].voicing
+  const currentPosition = stepResults[chordIndex].position
 
   // 实时引用：RhythmBar 的每步回调里读最新扫弦型 / 和弦指法，避免闭包过期
   const strumPatternRef = useRef<string | null>(null)
@@ -124,12 +138,6 @@ export function JamTrainer({ tuning }: { tuning: Tuning }) {
     sessionStore.setKey(preset.keyPc, preset.keyQuality)
   }, [preset])
 
-  // ── 时间轴每和弦的小和弦图（一次算好）──
-  const stepVoicings = useMemo(
-    () => preset.chords.map((c) => voiceChord(c.rootPc, typeOf(c.typeId), tuning, shape)),
-    [preset, tuning, shape],
-  )
-
   // ── 当前激活音阶（global 用父音阶；perchord 用当前和弦推荐音阶）──
   const activeScale = useMemo(() => {
     if (scaleMode === 'global') return globalScaleFor(preset)
@@ -139,16 +147,30 @@ export function JamTrainer({ tuning }: { tuning: Tuning }) {
   }, [scaleMode, preset, chordIndex, currentChord.rootPc])
 
   /**
+   * 纵向模式：手固定留在锚点把位区，这里算出该区的品位窗（[anchor-2, anchor+6]），
+   * 让指板 / 参谋范围不随和弦切换乱跳。
+   */
+  const anchorRootFret = useMemo(() => {
+    if (axis !== 'vertical') return null
+    const v = voiceChord(preset.keyPc, typeOf('maj'), tuning, anchor)
+    return v.notes.find((n) => n.isRoot)?.fret ?? v.baseFret
+  }, [axis, preset.keyPc, anchor, tuning])
+
+  /**
    * 参谋的指板范围：
+   *   · 纵向模式：固定锁在锚点把位区（几个和弦都在这块，范围不跳）
    *   · 3 / 5 / 7 音 —— 只亮当前和弦形状的把位窗口（跟把位走，选 E 形就亮 E 形那块）
    *   · 开「远八度」或 全放开 / 全部 —— 整条指板
    */
   const advisorFretRange: [number, number] = useMemo(() => {
+    if (axis === 'vertical' && anchorRootFret != null) {
+      return [Math.max(0, anchorRootFret - 2), Math.min(15, anchorRootFret + 6)]
+    }
     if (advisorLevel === 0 || advisorLevel === 'all' || showFarOctaves) return [0, 15]
     const lo = Math.max(0, currentVoicing.baseFret - 1)
     const hi = Math.min(15, currentVoicing.baseFret + 5)
     return [lo, hi]
-  }, [advisorLevel, showFarOctaves, currentVoicing.baseFret])
+  }, [advisorLevel, showFarOctaves, currentVoicing.baseFret, axis, anchorRootFret])
 
   // ── 指板高亮 ──
   const highlights = useMemo<Highlight[]>(() => {
@@ -183,22 +205,30 @@ export function JamTrainer({ tuning }: { tuning: Tuning }) {
         chord: currentChord,
         keyPc: preset.keyPc,
         keyQuality: preset.keyQuality,
-        window: [currentVoicing.baseFret, currentVoicing.baseFret + 4],
+        window:
+          axis === 'vertical' && anchorRootFret != null
+            ? [anchorRootFret, anchorRootFret + 4]
+            : [currentVoicing.baseFret, currentVoicing.baseFret + 4],
         fretRange: advisorFretRange,
       })
     }
-    const lo = currentVoicing.baseFret
-    const hi = currentVoicing.baseFret + 4
+    const lo = axis === 'vertical' && anchorRootFret != null ? anchorRootFret : currentVoicing.baseFret
+    const hi = lo + 4
     const positions = scalePositions(tuning, activeScale.rootPc, activeScale.formula, [0, 15])
     return positions.map((p) => {
       if (p.degree === 0) return { string: p.string, fret: p.fret, kind: 'answer' as const }
       const near = p.fret >= lo && p.fret <= hi
       return { string: p.string, fret: p.fret, kind: near ? ('accent' as const) : ('secondary' as const) }
     })
-  }, [renderMode, currentVoicing, activeScale, advisorLevel, activeLick, currentChord, preset, tuning, advisorFretRange])
+  }, [renderMode, currentVoicing, activeScale, advisorLevel, activeLick, currentChord, preset, tuning, advisorFretRange, axis, anchorRootFret])
 
   const scopeRange: [number, number] = useMemo(() => {
-    if (renderMode === 'chord') return [currentVoicing.baseFret, currentVoicing.baseFret + 4]
+    if (renderMode === 'chord') {
+      if (axis === 'vertical' && anchorRootFret != null) {
+        return [Math.max(0, anchorRootFret - 2), Math.min(15, anchorRootFret + 6)]
+      }
+      return [currentVoicing.baseFret, currentVoicing.baseFret + 4]
+    }
     if (renderMode === 'lick' && activeLick) {
       let lo = 99
       let hi = -1
@@ -209,7 +239,7 @@ export function JamTrainer({ tuning }: { tuning: Tuning }) {
       return [Math.max(0, lo - 1), Math.min(15, hi + 2)]
     }
     return advisorFretRange
-  }, [renderMode, currentVoicing.baseFret, activeLick, advisorFretRange])
+  }, [renderMode, currentVoicing.baseFret, activeLick, advisorFretRange, axis, anchorRootFret])
 
   const onFretClick = useCallback(
     (stringNumber: number, fret: number) => {
@@ -232,6 +262,10 @@ export function JamTrainer({ tuning }: { tuning: Tuning }) {
   backingRef.current = backing
   const rhythmPreset = getGroove(grooveId)
   beatsPerBarRef.current = rhythmPreset.steps.length / rhythmPreset.subdiv
+
+  // 实时引用：RhythmBar 的每步回调里读最新每和弦指法（横向/纵向都可能变），避免闭包过期
+  const stepResultsRef = useRef(stepResults)
+  stepResultsRef.current = stepResults
 
   const handleBeat = useCallback(
     (beat: number) => {
@@ -257,8 +291,7 @@ export function JamTrainer({ tuning }: { tuning: Tuning }) {
         setChordIndex(idx)
         // 有扫弦型时由图案逐下扫（避免换和弦那一下额外多扫一次）
         if (backingRef.current && !strumPatternRef.current) {
-          const c = presetRef.current.chords[idx]
-          const v = voiceChord(c.rootPc, typeOf(c.typeId), tuning)
+          const v = stepResultsRef.current[idx].voicing
           audioEngine.strum(
             v.notes.map((m) => (m.muted ? null : midiAt(tuning, m.string, m.fret))),
             0.009,
@@ -458,6 +491,27 @@ export function JamTrainer({ tuning }: { tuning: Tuning }) {
             </button>
           </div>
         </div>
+        <div className="field">
+          <span className="field__label">练习轴</span>
+          <div className="segmented" role="group" aria-label="练习轴">
+            <button
+              className="segmented__item"
+              aria-pressed={axis === 'horizontal'}
+              onClick={() => setAxis('horizontal')}
+              type="button"
+            >
+              横向（同形状）
+            </button>
+            <button
+              className="segmented__item"
+              aria-pressed={axis === 'vertical'}
+              onClick={() => setAxis('vertical')}
+              type="button"
+            >
+              纵向（同区域）
+            </button>
+          </div>
+        </div>
         <div className="jam-key" aria-live="polite">
           父调 <b>{progressionKeyLabel(preset)}</b> · {preset.style}
         </div>
@@ -480,8 +534,14 @@ export function JamTrainer({ tuning }: { tuning: Tuning }) {
             aria-pressed={i === chordIndex}
           >
             <span className="jam-step__num">{preset.chordNumerals[i]}</span>
-            <ChordDiagram voicing={stepVoicings[i]} />
+            <ChordDiagram voicing={stepResults[i].voicing} />
             <span className="jam-step__name">{jamChordName(c)}</span>
+            {axis === 'vertical' && (
+              <span className="jam-step__shape">
+                {VERTICAL_ANCHORS.find((a) => a.id === stepResults[i].position)?.label ??
+                  stepResults[i].position}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -494,23 +554,50 @@ export function JamTrainer({ tuning }: { tuning: Tuning }) {
               <>
                 <span className="jam-fret__title">
                   和弦形状 · 当前 <b>{jamChordName(currentChord)}</b>（{preset.chordNumerals[chordIndex]}）
+                  {axis === 'vertical' && (
+                    <span className="jam-fret__hint">
+                      · 用 {VERTICAL_ANCHORS.find((a) => a.id === currentPosition)?.label ?? currentPosition} 形（同把位区换形状）
+                    </span>
+                  )}
                 </span>
-                <div className="segmented segmented--sm" role="group" aria-label="把位形状">
-                  {JAM_SHAPES.map((s) => (
-                    <button
-                      key={s.id}
-                      className="segmented__item"
-                      aria-pressed={shape === s.id}
-                      onClick={() => setShape(s.id)}
-                      type="button"
-                    >
-                      {s.label}
-                    </button>
-                  ))}
-                </div>
-                {!shapeAvailable && (
+                {axis === 'horizontal' ? (
+                  <div className="segmented segmented--sm" role="group" aria-label="把位形状">
+                    {JAM_SHAPES.map((s) => (
+                      <button
+                        key={s.id}
+                        className="segmented__item"
+                        aria-pressed={shape === s.id}
+                        onClick={() => setShape(s.id)}
+                        type="button"
+                      >
+                        {s.label}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="segmented segmented--sm" role="group" aria-label="把位区">
+                    {VERTICAL_ANCHORS.map((a) => (
+                      <button
+                        key={a.id}
+                        className="segmented__item"
+                        aria-pressed={anchor === a.id}
+                        onClick={() => setAnchor(a.id)}
+                        type="button"
+                        title={`锚定在 ${a.label} 区（${a.approx}）`}
+                      >
+                        {a.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {axis === 'horizontal' && !shapeAvailable && (
                   <span className="jam-fret__shape-warn">
                     ⚠ {shapeLabel}：当前和弦没有此把位指法，已显示最近把位
+                  </span>
+                )}
+                {axis === 'vertical' && currentPosition === 'auto' && (
+                  <span className="jam-fret__shape-warn">
+                    ⚠ 当前和弦在该把位区没有可移动 CAGED 形状，已显示最近把位
                   </span>
                 )}
               </>
