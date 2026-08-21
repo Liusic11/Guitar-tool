@@ -10,7 +10,7 @@
 
 import { useSyncExternalStore } from 'react'
 
-export type ViewKey = 'train' | 'chords' | 'scales' | 'ear' | 'jam' | 'licks' | 'path'
+export type ViewKey = 'train' | 'chords' | 'scales' | 'ear' | 'jam' | 'licks' | 'path' | 'theory'
 
 interface SharedState {
   /** 当前共享根音（pitch class 0..11），null = 尚未设定 */

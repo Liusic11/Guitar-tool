@@ -26,6 +26,10 @@ const degreeName = (iv: number): string => DEGREE_NAMES[iv] ?? String(iv)
 
 const ROOT_LABELS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
+/** 平行大调 / 平行小调公式（同根音切换用） */
+const PARALLEL_MAJOR = [0, 2, 4, 5, 7, 9, 11]
+const PARALLEL_MINOR = [0, 2, 3, 5, 7, 8, 10]
+
 /** 弦号 6→1，用于把位形状卡 */
 const STRING_ORDER = [6, 5, 4, 3, 2, 1]
 
@@ -42,6 +46,9 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
   const [mode, setMode] = useState<Mode>('map')
   const [patternId, setPatternId] = useState<PatternId>('seq3')
 
+  // 平行转换：在原样 / 平行大调 / 平行小调之间切换（同根音，换 formula 驱动指板）
+  const [parallelMode, setParallelMode] = useState<'none' | 'major' | 'minor'>('none')
+
   // 根音变化即同步到共享 store，让和弦页 / 音阶页感知到同一把钥匙
   useEffect(() => {
     sessionStore.setRoot(rootPc)
@@ -52,15 +59,20 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
     [scaleId],
   )
 
+  // 平行转换：决定指板真正渲染的公式与音阶 id（原样用 def；平行态用 7 音大/小调）
+  const activeId: string = parallelMode === 'none' ? def.id : parallelMode
+  const activeFormula: number[] =
+    parallelMode === 'none' ? def.formula : parallelMode === 'major' ? PARALLEL_MAJOR : PARALLEL_MINOR
+
   const boxes = useMemo(
-    () => scaleBoxes(tuning, rootPc, def.formula, 15, def.id),
-    [tuning, rootPc, def],
+    () => scaleBoxes(tuning, rootPc, activeFormula, 15, activeId),
+    [tuning, rootPc, activeFormula, activeId],
   )
 
   const [boxIndex, setBoxIndex] = useState(0)
   const [showAll, setShowAll] = useState(false)
 
-  const isPenta = def.category === 'pentatonic' || def.category === 'blues'
+  const isPentaActive = activeId === 'minorPent' || activeId === 'blues' || activeId === 'majorPent'
 
   // 根音/音阶改变时，回到主形状（根音把位）；没有则回到最低把位
   useEffect(() => {
@@ -69,6 +81,11 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
     setShowAll(false)
   }, [tuning, rootPc, def, boxes])
 
+  // 切换音阶时取消平行转换（平行态只针对当前选中音阶有意义）
+  useEffect(() => {
+    setParallelMode('none')
+  }, [def])
+
   const currentRange: readonly [number, number] = useMemo(() => {
     if (showAll || boxes.length === 0) return [0, 15]
     const b = boxes[boxIndex]
@@ -76,8 +93,8 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
   }, [showAll, boxes, boxIndex])
 
   const positions = useMemo(
-    () => scalePositions(tuning, rootPc, def.formula, currentRange),
-    [tuning, rootPc, def, currentRange],
+    () => scalePositions(tuning, rootPc, activeFormula, currentRange),
+    [tuning, rootPc, activeFormula, currentRange],
   )
 
   // 「跟拍」模式：把当前把位内的音按音高升序排成一条连奏路线
@@ -85,13 +102,13 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
     const sorted = [...positions].sort((a, b) => a.midi - b.midi)
     const firstRoot = sorted.find((p) => p.degree === 0)
     const startIdx = firstRoot ? sorted.indexOf(firstRoot) : 0
-    const len = def.formula.length * 2 + 1
+    const len = activeFormula.length * 2 + 1
     return sorted.slice(startIdx, startIdx + len)
   }, [positions, def])
 
   // 「模进」模式：把当前把位里的音阶音排成一条造句路线（3 音一组 / 八度跳 / 琶音 / blues）
   const patternRun = useMemo<ScaleNote[]>(
-    () => scalePattern(positions, def.formula, patternId),
+    () => scalePattern(positions, activeFormula, patternId),
     [positions, def, patternId],
   )
 
@@ -174,7 +191,7 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
         string: p.string,
         fret: p.fret,
         kind: i < demoIdx ? 'done' : i === demoIdx ? 'answer' : 'ghost',
-        label: degreeName(def.formula[p.degree]),
+        label: degreeName(activeFormula[p.degree]),
       }))
     }
     if (mode === 'map') {
@@ -182,7 +199,7 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
         string: p.string,
         fret: p.fret,
         kind: p.degree === 0 ? 'answer' : 'secondary',
-        label: degreeName(def.formula[p.degree]),
+        label: degreeName(activeFormula[p.degree]),
       }))
     }
     if (mode === 'follow' || mode === 'pattern') {
@@ -191,14 +208,14 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
         string: p.string,
         fret: p.fret,
         kind: i < seqIdx ? 'done' : i === seqIdx ? 'answer' : 'ghost',
-        label: degreeName(def.formula[p.degree]),
+        label: degreeName(activeFormula[p.degree]),
       }))
     }
     return positions.map((p) => ({
       string: p.string,
       fret: p.fret,
       kind: 'ghost' as const,
-      label: degreeName(def.formula[p.degree]),
+      label: degreeName(activeFormula[p.degree]),
     }))
   }, [mode, positions, run, patternRun, seqIdx, demoActive, demoIdx, demoRoute, def])
 
@@ -223,10 +240,14 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
     [mode, positions, run, seqIdx, playNote],
   )
 
-  const noteNames = def.formula.map((iv) => letterOf(((rootPc + iv) % 12 + 12) % 12))
+  const noteNames = activeFormula.map((iv) => letterOf(((rootPc + iv) % 12 + 12) % 12))
   const scaleComplete = mode === 'follow' && seqIdx >= run.length
   const patternComplete = mode === 'pattern' && seqIdx >= patternRun.length
   const chordRootName = ROOT_LABELS[rootPc]
+  const displayName =
+    parallelMode === 'none'
+      ? `${chordRootName} ${def.label}`
+      : `${chordRootName} 平行${parallelMode === 'major' ? '大调' : '小调'}`
 
   // ── 老师口吻的左侧乐理提示（随音阶 / 把位变化）──
   const teacherTip = useMemo(() => {
@@ -456,6 +477,33 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
                 模进
               </button>
             </div>
+
+            <div className="field">
+              <label className="field__label">平行转换</label>
+              <div className="segmented" role="group" aria-label="平行转换">
+                <button
+                  className="segmented__item"
+                  aria-pressed={parallelMode === 'none'}
+                  onClick={() => setParallelMode('none')}
+                >
+                  原样
+                </button>
+                <button
+                  className="segmented__item"
+                  aria-pressed={parallelMode === 'major'}
+                  onClick={() => setParallelMode('major')}
+                >
+                  转平行大调
+                </button>
+                <button
+                  className="segmented__item"
+                  aria-pressed={parallelMode === 'minor'}
+                  onClick={() => setParallelMode('minor')}
+                >
+                  转平行小调
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -498,6 +546,16 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
           </button>
         </div>
 
+        {parallelMode !== 'none' && (
+          <div className="scale-parallel-note">
+            正在看 <b>{chordRootName} {def.label}</b> 的<b>平行{parallelMode === 'major' ? '大调' : '小调'}</b>：根音 {chordRootName} 不变，
+            {parallelMode === 'minor'
+              ? '把 3·6·7 级降半音（更暗、更叙事）'
+              : '把 ♭3·♭6·♭7 升回自然大调（更亮、更稳）'}
+            。指板上只有那三颗音切换了颜色。
+          </div>
+        )}
+
         {/* 模进子选择器（仅在「模进」模式下出现） */}
         {mode === 'pattern' && (
           <div className="scale-pattern-bar">
@@ -535,10 +593,10 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
           <section className="chord-figure scale-figure" aria-label="音阶指板">
             <div className="chord-head">
               <span className="chord-head__name">
-                {chordRootName} {def.label}
+                {displayName}
               </span>
               <span className="chord-head__type">{boxLabel}</span>
-              <span className="chord-head__formula">{def.formula.join('·')}</span>
+              <span className="chord-head__formula">{activeFormula.join('·')}</span>
             </div>
 
             {mode === 'follow' ? (
@@ -606,7 +664,7 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
                             <span key={k} className={noteCls}>
                               {n.fret}品
                               <small className="scale-shape__degree">
-                                {degreeName(def.formula[n.degree])}
+                                {degreeName(activeFormula[n.degree])}
                               </small>
                             </span>
                           )
@@ -638,11 +696,11 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
             <div className="chord-theory__block">
               <h4 className="chord-theory__h">怎么练这个位置</h4>
               <p className="chord-theory__p">
-                五声被拆成 {isPenta ? '5 个 CAGED 形状（E‑D‑C‑A‑G，彼此咬合覆盖全琴颈）' : '7 个位置'}，
+                五声被拆成 {isPentaActive ? '5 个 CAGED 形状（E‑D‑C‑A‑G，彼此咬合覆盖全琴颈）' : '7 个位置'}，
                 你正在看的是其中一个。1）先看形状卡，记住每根弦上
                 <strong>根音（R，橙色）</strong>的位置；2）用「跟拍」模式跟着底部节拍器从低音到高音走一遍；
                 3）闭上眼睛，凭肌肉记忆按出来。用顶部「上一个位置 / 下一个位置」顺着琴颈往上爬，
-                把 {isPenta ? '5 个形状' : '7 个位置'} 都啃熟，整条指板就通了。
+                把 {isPentaActive ? '5 个形状' : '7 个位置'} 都啃熟，整条指板就通了。
               </p>
             </div>
 
@@ -653,6 +711,18 @@ export function ScaleTrainer({ tuning }: ScaleTrainerProps) {
                 再提到 90 BPM。节奏稳了，音阶才真正属于你。
               </p>
             </div>
+
+            {parallelMode !== 'none' && (
+              <div className="chord-theory__block">
+                <h4 className="chord-theory__h">平行转换在练什么</h4>
+                <p className="chord-theory__p">
+                  你正把 {chordRootName} {def.label} 切换成<b>同根音的平行{parallelMode === 'major' ? '大调' : '小调'}</b>。
+                  根音 {chordRootName} 没动，变的是 3·6·7 级：小调把这三颗压低半音（更暗、更叙事），大调把它们升回自然（更亮、更稳）。
+                  <strong>练习目标：</strong>在指板上认出「哪三颗音切换了颜色」，耳朵抓住那个 ♭3（小三度）半音差——
+                  这就是大小调情绪切换的全部秘密，也是你后面写歌、即兴换明暗的底牌。
+                </p>
+              </div>
+            )}
 
             {/* 老师提示：用 skill 老师口吻写的实战乐理，放在右侧填补空白 */}
             <aside className="scale-teacher-tip" aria-label="老师提示">

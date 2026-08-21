@@ -2356,6 +2356,23 @@
   text-align: center;
 }
 
+/* 平行转换说明横幅 */
+.scale-parallel-note {
+  margin: 0 0 0.7rem;
+  padding: 0.7rem 0.95rem;
+  background: var(--ember-wash);
+  border: 1px solid oklch(82% 0.07 40);
+  border-left: 4px solid var(--ember);
+  border-radius: var(--radius);
+  font-size: 1.02rem;
+  line-height: 1.65;
+  font-weight: 600;
+  color: var(--ink);
+}
+.scale-parallel-note b {
+  color: var(--ember);
+}
+
 /* 模进子选择器（仅在「模进」模式出现） */
 .scale-pattern-bar {
   display: flex;
@@ -4971,6 +4988,703 @@
     padding-left: 0.55rem;
     border-left: 1px dashed var(--ink-4);
   }
+}
+
+/* ═══════════════════════════════════════════════
+   练习手册 (Theory Guide) · 怎么练 & 是什么
+   ═══════════════════════════════════════════════ */
+.theory-page {
+  grid-row: 2;
+}
+
+.theory-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-5);
+  padding: var(--s-4) clamp(var(--s-4), 3vw, var(--s-6));
+}
+
+/* ── 左：目录 ── */
+.theory-toc {
+  position: sticky;
+  top: 0;
+  flex: 0 0 auto;
+  align-self: flex-start;
+  width: clamp(154px, 17vw, 224px);
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: var(--s-3) var(--s-3) var(--s-4);
+  background: linear-gradient(135deg, var(--paper-2), var(--paper-3));
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--brass);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-raise);
+}
+.theory-toc__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: 0.45rem;
+  border-bottom: 1px dashed var(--ink-4);
+}
+.theory-toc__kicker {
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-weight: 800;
+  color: var(--brass-lo);
+}
+.theory-toc__count {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--ink-3);
+}
+.theory-toc__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.theory-toc__item {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.42rem 0.5rem;
+  border-radius: var(--radius);
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--ink-2);
+  transition: background 0.18s var(--ease-out-quart), color 0.18s var(--ease-out-quart);
+}
+.theory-toc__item:hover {
+  background: var(--paper-sunk);
+  color: var(--ink);
+}
+.theory-toc__item.is-active {
+  background: var(--ember-wash);
+  color: var(--ember);
+}
+.theory-toc__label {
+  min-width: 0;
+}
+.theory-toc__top {
+  margin-top: 0.3rem;
+  padding: 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--ink-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-2);
+}
+.theory-toc__top:hover {
+  color: var(--ember);
+  border-color: var(--ember);
+}
+
+/* ── 右：内容 ── */
+.theory-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  max-width: 880px;
+}
+.theory-intro {
+  padding-bottom: var(--s-2);
+  border-bottom: 2px solid var(--line);
+}
+.theory-intro__title {
+  font-family: var(--font-display);
+  font-size: clamp(1.6rem, 3vw, 2.1rem);
+  font-weight: 700;
+  color: var(--ember);
+  margin: 0;
+}
+.theory-intro__sub {
+  margin: 0.5rem 0 0;
+  font-size: 0.98rem;
+  line-height: 1.65;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.theory-card {
+  background: linear-gradient(160deg, var(--paper), var(--paper-2));
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: var(--s-5) var(--s-5) var(--s-4);
+  scroll-margin-top: var(--s-4);
+  box-shadow: var(--shadow-raise);
+}
+.theory-card__head {
+  margin-bottom: var(--s-4);
+  padding-bottom: var(--s-3);
+  border-bottom: 1px dashed var(--ink-4);
+}
+.theory-card__title {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0;
+}
+.theory-card__tag {
+  margin: 0.3rem 0 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--brass-lo);
+}
+.theory-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.theory-p {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.75;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.theory-def {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: var(--s-3) var(--s-4);
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--ember);
+  border-radius: var(--radius);
+}
+.theory-def__term {
+  font-size: 0.96rem;
+  font-weight: 800;
+  color: var(--ember);
+}
+.theory-def__text {
+  font-size: 0.98rem;
+  line-height: 1.7;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.theory-callout {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--radius);
+  border-left: 4px solid var(--brass);
+  background: var(--paper-3);
+}
+.theory-callout--ember {
+  border-left-color: var(--ember);
+  background: var(--ember-wash);
+}
+.theory-callout--sage {
+  border-left-color: var(--sage);
+  background: var(--sage-wash);
+}
+.theory-callout--brass {
+  border-left-color: var(--brass);
+  background: var(--paper-3);
+}
+.theory-callout__title {
+  font-size: 0.86rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--ember);
+}
+.theory-callout--sage .theory-callout__title {
+  color: var(--sage);
+}
+.theory-callout--brass .theory-callout__title {
+  color: var(--brass-lo);
+}
+.theory-callout__text {
+  font-size: 0.96rem;
+  line-height: 1.65;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.theory-practice {
+  padding: var(--s-3) var(--s-4);
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.theory-practice__title {
+  font-family: var(--font-display);
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0 0 0.55rem;
+}
+.theory-practice__row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  padding: 0.35rem 0;
+  border-top: 1px dashed var(--ink-4);
+}
+.theory-practice__row:first-of-type {
+  border-top: none;
+}
+.theory-practice__k {
+  flex: 0 0 auto;
+  width: 2.6rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--ember);
+  padding-top: 0.15rem;
+}
+.theory-practice__k--goal {
+  color: var(--sage);
+}
+.theory-practice__v {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.65;
+  font-weight: 600;
+  color: var(--ink);
+}
+.theory-practice__v--pre {
+  white-space: pre-line;
+}
+
+.theory-relation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  width: 100%;
+  text-align: left;
+  padding: var(--s-3) var(--s-4);
+  background: linear-gradient(135deg, var(--ember-wash), var(--paper-2));
+  border: 1px solid var(--ember);
+  border-radius: var(--radius);
+  transition: transform 0.15s var(--ease-out-quart), box-shadow 0.15s var(--ease-out-quart);
+}
+.theory-relation:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-float);
+}
+.theory-relation__text {
+  font-size: 0.94rem;
+  line-height: 1.55;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+.theory-relation__btn {
+  flex: 0 0 auto;
+  font-size: 0.86rem;
+  font-weight: 800;
+  color: var(--ember);
+  white-space: nowrap;
+}
+
+.theory-foot {
+  padding: var(--s-4) 0 var(--s-6);
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--ink-3);
+  border-top: 1px dashed var(--ink-4);
+}
+
+/* ── 窄屏：目录收起 ── */
+@media (max-width: 760px) {
+  .theory-toc {
+    display: none;
+  }
+  .theory-main {
+    max-width: none;
+  }
+}
+
+/* ═══════════ 每日配比 ═══════════ */
+.theory-daily {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: var(--s-4) var(--s-5);
+  background: linear-gradient(135deg, var(--ember-wash), var(--paper-2));
+  border: 1px solid var(--ember-soft);
+  border-radius: var(--radius-lg);
+}
+.theory-daily__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--ember);
+}
+.theory-daily__list {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  font-weight: 600;
+  color: var(--ink);
+}
+.theory-daily__note {
+  margin: 0.15rem 0 0;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--ink-3);
+}
+
+/* ═══════════ 练习顺序总纲（时间轴） ═══════════ */
+.theory-roadmap {
+  display: flex;
+  flex-direction: column;
+}
+.road-stage {
+  display: flex;
+  gap: var(--s-3);
+  padding: var(--s-4) 0;
+  border-top: 1px dashed var(--ink-4);
+}
+.road-stage:first-child {
+  border-top: none;
+  padding-top: var(--s-2);
+}
+.road-stage__rail {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.road-stage__num {
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--ember);
+  background: var(--paper);
+  border: 2px solid var(--ember);
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px var(--ember-wash);
+}
+.road-stage__body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.road-stage__head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.7rem;
+}
+.road-stage__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.08rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+.road-stage__duration {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--brass-lo);
+  padding: 0.12rem 0.55rem;
+  background: var(--paper-3);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.road-stage__what {
+  margin: 0.45rem 0 0;
+  font-size: 0.94rem;
+  line-height: 1.7;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.road-stage__cols {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr;
+  gap: var(--s-4);
+  margin-top: var(--s-3);
+}
+.road-stage__col {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.road-stage__k {
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+  font-weight: 800;
+  color: var(--ember);
+  text-transform: uppercase;
+}
+.road-stage__k--goal {
+  color: var(--sage);
+}
+.road-stage__method,
+.road-stage__goals {
+  margin: 0;
+  padding-left: 1.05rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  font-weight: 600;
+  color: var(--ink);
+}
+.road-stage__goals li {
+  list-style: none;
+  position: relative;
+  padding-left: 0.15rem;
+}
+.road-stage__goals li::marker {
+  content: '';
+}
+.road-stage__goals li::before {
+  content: '✓';
+  color: var(--sage);
+  font-weight: 800;
+  margin-right: 0.45rem;
+}
+.road-stage__modules {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.2rem;
+}
+.road-stage__go {
+  padding: 0.38rem 0.7rem;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--ember);
+  background: var(--paper);
+  border: 1px solid var(--ember-soft);
+  border-radius: 999px;
+  transition: background 0.15s var(--ease-out-quart), color 0.15s var(--ease-out-quart);
+}
+.road-stage__go:hover {
+  background: var(--ember);
+  color: var(--paper);
+}
+.road-stage__basis {
+  margin: var(--s-3) 0 0;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  font-weight: 600;
+  color: var(--ink-3);
+  padding: 0.4rem 0.6rem;
+  background: var(--paper-2);
+  border-left: 3px solid var(--brass);
+  border-radius: var(--radius-sm);
+}
+.road-basis-note {
+  margin: var(--s-4) 0 0;
+  padding: var(--s-3) var(--s-4);
+  font-size: 0.85rem;
+  line-height: 1.7;
+  font-weight: 600;
+  color: var(--ink-2);
+  background: var(--paper-2);
+  border: 1px dashed var(--ink-4);
+  border-radius: var(--radius);
+}
+@media (max-width: 880px) {
+  .road-stage__cols {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ═══════════ 指板教学图 ═══════════ */
+.theory-diagram {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: var(--s-3);
+  background: var(--paper-sunk);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.theory-diagram__board {
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--rose-edge);
+  background: var(--rose-lo);
+}
+.theory-diagram__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.1rem;
+}
+.theory-diagram__key {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+.theory-diagram__swatch {
+  width: 0.72rem;
+  height: 0.72rem;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+.theory-diagram__swatch--root,
+.theory-diagram__swatch--start {
+  background: var(--ember);
+}
+.theory-diagram__swatch--note {
+  background: var(--ember-soft);
+}
+.theory-diagram__swatch--accent {
+  background: var(--brass);
+}
+.theory-diagram__swatch--ghost {
+  background: transparent;
+  border: 1.5px solid var(--ink-4);
+}
+.theory-diagram__swatch--end {
+  background: var(--sage);
+}
+.theory-diagram__caption {
+  font-size: 0.88rem;
+  line-height: 1.65;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+/* ═══════════ 步骤 / 进行地图 ═══════════ */
+.theory-steps {
+  padding: var(--s-3) var(--s-4);
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.theory-steps__title {
+  margin: 0 0 0.55rem;
+  font-family: var(--font-display);
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+.theory-steps__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.theory-steps__item {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+}
+.theory-steps__num {
+  flex: 0 0 auto;
+  width: 1.4rem;
+  height: 1.4rem;
+  display: grid;
+  place-items: center;
+  margin-top: 0.1rem;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--paper);
+  background: var(--ember);
+  border-radius: 50%;
+}
+.theory-steps__text {
+  font-size: 0.93rem;
+  line-height: 1.65;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.theory-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.theory-chips__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+.theory-chips__flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+.theory-chips__wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.theory-chips__chip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.05rem;
+  padding: 0.35rem 0.85rem;
+  background: var(--paper);
+  border: 1.5px solid var(--ember-soft);
+  border-radius: var(--radius);
+}
+.theory-chips__chip b {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  color: var(--ember);
+}
+.theory-chips__chip em {
+  font-style: normal;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.theory-chips__arrow {
+  color: var(--brass-lo);
+  font-weight: 800;
+  font-size: 1rem;
+}
+
+/* ═══════════ 模块详解头部 ═══════════ */
+.theory-card__icon {
+  margin-right: 0.45rem;
+}
+.theory-module-what {
+  margin: 0 0 var(--s-4);
+  padding: var(--s-3) var(--s-4);
+  font-size: 0.98rem;
+  line-height: 1.75;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--paper-2);
+  border-left: 4px solid var(--ember);
+  border-radius: var(--radius);
 }
 
 

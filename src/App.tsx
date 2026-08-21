@@ -7,6 +7,7 @@ import { ScaleTrainer } from './components/ScaleTrainer'
 import { JamTrainer } from './components/JamTrainer'
 import { LickLibrary } from './components/LickLibrary'
 import { LearningPath } from './components/LearningPath'
+import { TheoryGuide } from './components/TheoryGuide'
 import { SettingsDrawer } from './components/SettingsDrawer'
 import { useQuizEngine } from './hooks/useQuizEngine'
 import { BIAS_OPTIONS, MAX_FRET, LETTER_NAMES } from './lib/music'
@@ -46,12 +47,12 @@ export default function App() {
   } = engine
 
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [view, setView] = useState<'train' | 'chords' | 'scales' | 'ear' | 'jam' | 'licks' | 'path'>('train')
+  const [view, setView] = useState<'train' | 'chords' | 'scales' | 'ear' | 'jam' | 'licks' | 'path' | 'theory'>('train')
   const task = settings.task
 
   // 离开指板训练时若还在跑就先停掉，避免两套声音打架
   const switchView = useCallback(
-    (next: 'train' | 'chords' | 'scales' | 'ear' | 'jam' | 'licks' | 'path') => {
+    (next: 'train' | 'chords' | 'scales' | 'ear' | 'jam' | 'licks' | 'path' | 'theory') => {
       if (next !== 'train' && running) stop()
       setView(next)
     },
@@ -298,6 +299,13 @@ export default function App() {
             >
               乐句
             </button>
+            <button
+              className="segmented__item"
+              aria-pressed={view === 'theory'}
+              onClick={() => switchView('theory')}
+            >
+              乐理
+            </button>
           </div>
 
           {view === 'train' && (
@@ -452,6 +460,8 @@ export default function App() {
         <EarTrainer tuning={tuning} />
       ) : view === 'jam' ? (
         <JamTrainer tuning={tuning} />
+      ) : view === 'theory' ? (
+        <TheoryGuide tuning={tuning} />
       ) : (
         <LickLibrary tuning={tuning} />
       )}
